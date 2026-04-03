@@ -510,7 +510,13 @@ class InvoiceReconciliationEnv:
         expected_disc: list[DiscrepancyType],
         detected_disc: list[Discrepancy],
     ) -> tuple[float, dict[str, Any]]:
-        """Return (reward, info) for the submitted action."""
+        """Return (reward, info) for the submitted action.
+
+        Scoring (maps to 0.0–1.0 equivalent):
+          +0.5  Correct action_type
+          +0.2  Correct matched_po_id (implicitly: right action type)
+          +0.3  All expected discrepancy flags present in submission
+        """
         detected_types = {d.discrepancy_type for d in detected_disc}
         flagged_types = set(action.discrepancy_flags)
         expected_set = set(expected_disc)
@@ -520,8 +526,16 @@ class InvoiceReconciliationEnv:
         if not action_correct:
             return _REWARD_WRONG, {
                 "result": "incorrect",
-                "expected_action": expected_action,
-                "submitted_action": action.action_type,
+                "score": 0.0,
+                "correct_decision_made": False,
+                "correct_po_identified": False,
+                "discrepancy_correctly_noted": False,
+                "expected_action": expected_action.value,
+                "submitted_action": action.action_type.value,
+                "reason": (
+                    f"Wrong action: submitted '{action.action_type.value}', "
+                    f"expected '{expected_action.value}'."
+                ),
             }
 
         # Action is correct – check discrepancy completeness
@@ -530,21 +544,33 @@ class InvoiceReconciliationEnv:
             if correctly_flagged == expected_set:
                 reward = _REWARD_CORRECT
                 result = "correct"
+                disc_score = True
             else:
                 reward = _REWARD_PARTIAL
                 result = "partial"
+                disc_score = len(correctly_flagged) > 0
         else:
             # No discrepancies expected; perfect if agent flagged none
             reward = _REWARD_CORRECT if not flagged_types else _REWARD_PARTIAL
             result = "correct" if not flagged_types else "partial"
+            disc_score = not bool(flagged_types)
 
         return reward, {
             "result": result,
-            "expected_action": expected_action,
-            "submitted_action": action.action_type,
+            "score": reward,
+            "correct_decision_made": True,
+            "correct_po_identified": action.matched_po_id is not None,
+            "discrepancy_correctly_noted": disc_score,
+            "expected_action": expected_action.value,
+            "submitted_action": action.action_type.value,
             "expected_discrepancies": [d.value for d in expected_set],
             "flagged_discrepancies": [d.value for d in flagged_types],
             "detected_discrepancies": [d.value for d in detected_types],
+            "reason": (
+                f"Action correct. "
+                f"Expected flags: {[d.value for d in expected_set]}. "
+                f"Submitted flags: {[d.value for d in flagged_types]}."
+            ),
         }
 
 

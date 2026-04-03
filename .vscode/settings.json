@@ -1,0 +1,5 @@
+{
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.ignore": ["**/__pycache__/**"]
+}
