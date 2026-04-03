@@ -1,0 +1,85 @@
+environment: invoice-reconciliation
+version: "1.0.0"
+description: >
+  OpenEnv environment for automated Invoice-to-Payment reconciliation.
+  An AI agent receives an Invoice, matching Purchase Order, and Goods
+  Received Note, then must identify discrepancies and take an appropriate
+  action (approve, reject, flag, etc.).
+
+server:
+  base_url: http://localhost:8000
+  endpoints:
+    reset: POST /reset
+    step:  POST /step
+    state: GET  /state
+
+tasks:
+  - id: easy-exact-match
+    description: >
+      Invoice amounts, quantities, and vendor name exactly match the
+      Purchase Order and Goods Received Note. The correct action is to
+      APPROVE the invoice without flagging any discrepancies.
+    difficulty: easy
+    max_steps: 1
+    reward_threshold: 1.0
+
+  - id: medium-fuzzy-match
+    description: >
+      The vendor name contains minor capitalisation differences and one
+      line-item unit price is slightly higher than the PO value. The agent
+      must detect these discrepancies via fuzzy matching and FLAG them
+      rather than blindly approving or rejecting.
+    difficulty: medium
+    max_steps: 1
+    reward_threshold: 1.0
+    expected_discrepancies:
+      - vendor_name_mismatch
+      - price_mismatch
+
+  - id: hard-discrepancy-detection
+    description: >
+      Multiple overlapping discrepancies are present: a unit-price
+      overcharge on a high-value item, a quantity billed for goods not
+      fully received (partial delivery), and an extra line item (extended
+      warranty) that has no corresponding PO entry. The agent must detect
+      ALL discrepancies and REJECT the invoice.
+    difficulty: hard
+    max_steps: 1
+    reward_threshold: 1.0
+    expected_discrepancies:
+      - price_mismatch
+      - quantity_mismatch
+      - extra_charge
+
+observation_space:
+  type: object
+  fields:
+    episode_id: string
+    task_id: string
+    step: integer
+    invoice: Invoice
+    purchase_order: PurchaseOrder
+    goods_received_note: GoodsReceivedNote
+    discrepancies: "list[Discrepancy]"
+    is_done: boolean
+    reward: float
+    info: object
+
+action_space:
+  type: object
+  fields:
+    action_type:
+      type: enum
+      values: [approve, reject, flag_discrepancy, request_credit_note, escalate, match_to_po]
+    discrepancy_flags:
+      type: "list[enum]"
+      values: [price_mismatch, quantity_mismatch, vendor_name_mismatch,
+               po_not_found, duplicate_invoice, partial_delivery,
+               extra_charge, missing_line_item]
+    matched_po_id: "string | null"
+    reasoning: "string | null"
+
+rewards:
+  correct: 1.0
+  partial: 0.5
+  incorrect: -1.0
