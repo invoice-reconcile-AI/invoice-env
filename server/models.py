@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -37,13 +37,16 @@ class Invoice(BaseModel):
 class PurchaseOrder(BaseModel):
     """Represents an approved Purchase Order issued by the buyer."""
 
-    po_id: str
-    vendor_name: str
-    issue_date: date
-    line_items: list[LineItem]
-    total_amount: Decimal
-    currency: str = "USD"
-    approved_by: str | None = None
+    po_id: str = Field(..., description="Unique identifier for the Purchase Order (e.g., 'PO-2026-001').")
+    vendor_name: str = Field(..., description="Name of the vendor from whom the items are ordered.")
+    issue_date: date = Field(..., description="Date the Purchase Order was issued (YYYY-MM-DD).")
+    line_items: List[LineItem] = Field(..., description="Detailed list of line items ordered, each with description, quantity, unit price, and total.")
+    total_amount: Decimal = Field(..., description="Total monetary amount of the Purchase Order.")
+    currency: str = Field("USD", description="Currency of the Purchase Order amount (e.g., 'USD', 'EUR').")
+    items_ordered: Dict[str, int] = Field(..., description="Summary map of item descriptions to ordered quantities for quick agent lookup (e.g., {'Widget A': 10, 'Gadget B': 5}).")
+    status: Literal["open", "closed", "partially_received", "cancelled"] = Field("open", description="Current status of the PO.")
+    payment_terms: str = Field("Net 30", description="Payment terms for the PO (e.g., 'Net 30', 'Due on Receipt').")
+    approved_by: Optional[str] = Field(None, description="Name or ID of the person who approved this Purchase Order.")
 
 
 class GoodsReceivedNote(BaseModel):

@@ -100,19 +100,66 @@ curl -s -X POST http://localhost:8000/step \
 
 ---
 
+## Running the Agent
+
+The `agent/` package contains an LLM-powered agent that interacts with the environment.
+It supports **Together AI** (Meta Llama — recommended for hackathon), Groq, and OpenAI.
+
+### 1. Configure credentials
+
+```bash
+cp .env.example .env
+# edit .env and set LLM_API_KEY
+```
+
+### 2. Start the environment server (one terminal)
+
+```bash
+pip install -r requirements.txt
+uvicorn server.main:app --reload --port 8000
+```
+
+### 3. Run the agent (another terminal)
+
+```bash
+# Run all three tasks and print a summary
+python -m agent.agent --task all
+
+# Or run a single task
+python -m agent.agent --task hard-discrepancy-detection
+
+# Override provider/model on the fly
+python -m agent.agent --task all --provider groq --model llama-3.3-70b-versatile
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENV_BASE_URL` | `http://localhost:8000` | URL of the environment server |
+| `LLM_PROVIDER` | `together` | `together` \| `groq` \| `openai` |
+| `LLM_API_KEY` | *(required)* | API key for your chosen provider |
+| `LLM_MODEL` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | Model identifier |
+
+---
+
 ## Project structure
 
 ```
 invoice-env/
+├── .env.example              # Copy to .env and add your API key
 ├── Dockerfile
 ├── README.md
-├── openenv.yaml          # Task definitions and environment spec
+├── openenv.yaml              # Task definitions and environment spec
 ├── requirements.txt
+├── agent/
+│   ├── __init__.py
+│   └── agent.py              # LLM agent: formats obs → calls LLM → submits action
 └── server/
     ├── __init__.py
-    ├── env.py            # OpenEnv logic: reset(), step(), state()
-    ├── main.py           # FastAPI application
-    └── models.py         # Pydantic models
+    ├── env.py                # OpenEnv logic: reset(), step(), state()
+    ├── main.py               # FastAPI application
+    └── models.py             # Pydantic models
 ```
 
 ---

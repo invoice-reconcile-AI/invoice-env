@@ -73,6 +73,9 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             ],
             total_amount=Decimal("2000.00"),
             currency="USD",
+            items_ordered={"Office Chair": 10, "Desk Lamp": 20},
+            status="open",
+            payment_terms="Net 30",
             approved_by="procurement@buyer.com",
         ),
         "goods_received_note": GoodsReceivedNote(
@@ -147,6 +150,9 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             ],
             total_amount=Decimal("1020.00"),
             currency="USD",
+            items_ordered={"Office Chair": 5, "USB Hub 4-Port": 15},
+            status="open",
+            payment_terms="Net 30",
             approved_by="procurement@buyer.com",
         ),
         "goods_received_note": GoodsReceivedNote(
@@ -230,6 +236,9 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             ],
             total_amount=Decimal("11350.00"),
             currency="USD",
+            items_ordered={"Laptop Model X": 10, "Wireless Mouse": 10},
+            status="open",
+            payment_terms="Net 30",
             approved_by="procurement@buyer.com",
         ),
         "goods_received_note": GoodsReceivedNote(
