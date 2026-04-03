@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-invoice-reconciliation-env"
+version = "0.1.0"
+description = "Invoice-to-payment reconciliation environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    "openenv-core==0.2.1",
+    "openai>=1.35.0",
+    "pydantic>=2.7.0",
+    "faker>=25.0.0",
+    "uvicorn[standard]>=0.29.0",
+]
+
+[project.scripts]
+server = "server.app:main"
