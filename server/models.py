@@ -22,16 +22,54 @@ class LineItem(BaseModel):
 class Invoice(BaseModel):
     """Represents a vendor invoice submitted for payment."""
 
-    invoice_id: str
-    vendor_name: str
-    invoice_date: date
-    line_items: list[LineItem]
-    subtotal: Decimal
-    tax: Decimal = Decimal("0.00")
-    total_amount: Decimal
-    currency: str = "USD"
-    po_reference: str | None = None
-    notes: str | None = None
+    # ── Core identifiers ────────────────────────────────────────────────────
+    invoice_id: str = Field(..., description="Unique identifier for the invoice (e.g., 'INV-2026-001').")
+    vendor_name: str = Field(..., description="Name of the vendor as it appears on the invoice.")
+    invoice_date: str = Field(..., description="Date of the invoice (YYYY-MM-DD).")
+    due_date: str = Field(..., description="Date by which the invoice is due (YYYY-MM-DD).")
+
+    # ── Amounts ─────────────────────────────────────────────────────────────
+    subtotal: Decimal = Field(..., description="Pre-tax subtotal of all line items.")
+    tax: Decimal = Field(Decimal("0.00"), description="Tax amount applied to the invoice.")
+    total_amount: float = Field(..., description="Total monetary amount requested on the invoice (subtotal + tax).")
+    currency: str = Field("USD", description="Currency of the invoice amount (e.g., 'USD', 'EUR').")
+
+    # ── Structured line items (for precise discrepancy checks) ───────────────
+    line_items: List[LineItem] = Field(..., description="Detailed list of billed line items, each with description, quantity, unit price, and total.")
+    items_billed: Dict[str, int] = Field(..., description="Summary map of item descriptions to billed quantities for quick agent lookup (e.g., {'Widget A': 10}).")
+
+    # ── PO linkage ───────────────────────────────────────────────────────────
+    extracted_po_ref: Optional[str] = Field(
+        None,
+        description=(
+            "The Purchase Order reference explicitly extracted from a structured field on the "
+            "invoice, if available. May be None for medium-difficulty tasks where the PO ref "
+            "is embedded only in raw_text_content."
+        ),
+    )
+
+    # ── Raw document text (key for medium-difficulty fuzzy tasks) ────────────
+    raw_text_content: str = Field(
+        ...,
+        description=(
+            "Full text content extracted from the invoice document (simulates OCR/PDF parse). "
+            "May be messy. The agent should read this to find embedded PO references, "
+            "payment notes, or any details not captured in structured fields."
+        ),
+    )
+
+    # ── Legacy compatibility fields ───────────────────────────────────────────
+    notes: Optional[str] = Field(None, description="Free-text notes attached to the invoice.")
+
+    # ── INTERNAL grading field — NOT exposed to the agent ────────────────────
+    discrepancy_details: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "INTERNAL: injected by the scenario generator to record what discrepancies were "
+            "deliberately introduced into this invoice. The agent does NOT see this field; "
+            "it must infer discrepancies from raw_text_content, extracted_po_ref, and the PO/GRN."
+        ),
+    )
 
 
 class PurchaseOrder(BaseModel):
@@ -90,8 +128,8 @@ class InvoiceObservation(BaseModel):
     task_id: str
     step: int
     invoice: Invoice
-    purchase_order: PurchaseOrder | None = None
-    goods_received_note: GoodsReceivedNote | None = None
+    candidate_pos: List[PurchaseOrder] = Field(default_factory=list, description="A list of potential Purchase Orders the agent could match this invoice against.")
+    grn_log: List[GoodsReceivedNote] = Field(default_factory=list, description="A log of all Goods Received Notes. The agent must match these to verify physical quantities received.")
     discrepancies: list[Discrepancy] = Field(default_factory=list)
     is_done: bool = False
     reward: float = 0.0
@@ -116,3 +154,13 @@ class InvoiceAction(BaseModel):
     discrepancy_flags: list[DiscrepancyType] = Field(default_factory=list)
     matched_po_id: str | None = None
     reasoning: str | None = None
+
+
+class InvoiceReward(BaseModel):
+    """Granular reward structure for evaluation."""
+
+    score: float = Field(..., ge=0.0, le=1.0, description="Overall score for the task (0.0 to 1.0).")
+    correct_decision_made: bool = Field(..., description="Whether the core action (Approve/Hold/Flag) was correct.")
+    correct_po_identified: bool = Field(..., description="Whether the correct Purchase Order was linked.")
+    discrepancy_correctly_noted: bool = Field(..., description="Whether the discrepancies were correctly identified and explained.")
+    reason: str = Field(..., description="Detailed explanation of the score calculation.")

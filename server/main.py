@@ -39,9 +39,12 @@ def reset(request: ResetRequest) -> InvoiceObservation:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/step", response_model=InvoiceObservation)
-def step(action: InvoiceAction) -> InvoiceObservation:
-    """Submit an action and receive the next observation."""
+from server.models import InvoiceAction, InvoiceObservation, InvoiceReward
+
+
+@app.post("/step", response_model=InvoiceReward)
+def step(action: InvoiceAction) -> InvoiceReward:
+    """Submit an action and receive a detailed reward."""
     try:
         return env.step(action)
     except RuntimeError as exc:

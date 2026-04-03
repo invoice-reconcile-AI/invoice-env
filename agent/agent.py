@@ -25,7 +25,7 @@ import requests
 # Config
 # ---------------------------------------------------------------------------
 
-BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("ENV_BASE_URL", "http://127.0.0.1:8000")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "together")   # "together" | "groq" | "openai"
 LLM_MODEL = os.getenv(
     "LLM_MODEL",
@@ -67,22 +67,23 @@ def step_env(action: dict[str, Any]) -> dict[str, Any]:
 
 _SYSTEM_PROMPT = """\
 You are an expert Accounts-Payable reconciliation agent.
-You will be given an invoice, a purchase order (PO), and a goods-received note (GRN).
-Your job is to carefully compare all three documents, detect every discrepancy, and decide
-the correct action.
+You will be given an invoice, a candidate purchase order (PO), and a goods-received note (GRN).
+Your job is to carefully compare all three documents, detect every discrepancy, and decide the correct action.
 
-Rules:
-- If everything matches perfectly → action: "approve"
-- If there are discrepancies that can be resolved with clarification → action: "flag_discrepancy"
-- If discrepancies are serious (overcharge, missing items, fraud-risk) → action: "reject"
-- Always list EVERY discrepancy you detect in discrepancy_flags.
+Decision Logic (Graded on 0.0-1.0 scale):
+1. Decision Type (0.5 pts): 
+   - Choose 'approve' (pay) ONLY if everything matches perfectly.
+   - Choose 'flag_discrepancy' (hold) for minor issues (fuzzy name mismatch, small price diff).
+   - Choose 'reject' (flag) for serious issues (missing items, major overcharge).
+2. PO Identification (0.2 pts): Correctly link the PO ID in the matched_po_id field.
+3. Reasoning (0.3 pts): Provide a concise but detailed explanation in the 'reasoning' field identifying EXACTLY what is wrong or why it matches. Mention specific items, prices, or names.
 
-Respond ONLY with a valid JSON object (no markdown fences) in exactly this shape:
+Respond ONLY with a valid JSON object in exactly this shape:
 {
-  "action_type": "<one of: approve|reject|flag_discrepancy|request_credit_note|escalate|match_to_po>",
-  "discrepancy_flags": ["<zero or more discrepancy types>"],
+  "action_type": "<approve|reject|flag_discrepancy|request_credit_note|escalate|match_to_po>",
+  "discrepancy_flags": ["<price_mismatch|quantity_mismatch|vendor_name_mismatch|po_not_found|etc>"],
   "matched_po_id": "<po_id string or null>",
-  "reasoning": "<concise explanation of your decision>"
+  "reasoning": "<detect the specific issues here!>"
 }
 """.strip()
 
@@ -96,48 +97,46 @@ def _format_observation(obs: dict[str, Any]) -> str:
     lines.append(f"  ID         : {inv.get('invoice_id')}")
     lines.append(f"  Vendor     : {inv.get('vendor_name')}")
     lines.append(f"  Date       : {inv.get('invoice_date')}")
-    lines.append(f"  PO Ref     : {inv.get('po_reference')}")
+    lines.append(f"  Due Date   : {inv.get('due_date')}")
     lines.append(f"  Total      : {inv.get('total_amount')} {inv.get('currency')}")
-    lines.append("  Line Items :")
-    for item in inv.get("line_items", []):
-        lines.append(
-            f"    - {item['description']:30s}  qty={item['quantity']}  "
-            f"unit=${item['unit_price']}  total=${item['total']}"
-        )
+    lines.append("  Items Billed :")
+    for name, qty in (inv.get("items_billed") or {}).items():
+        lines.append(f"    - {name:30s}  qty={qty}")
+    lines.append("  Raw Content:")
+    lines.append("-" * 40)
+    for line in inv.get("raw_text_content", "").splitlines():
+        lines.append(f"| {line}")
+    lines.append("-" * 40)
 
-    po = obs.get("purchase_order")
-    if po:
-        lines.append("\n=== PURCHASE ORDER ===")
-        lines.append(f"  PO ID          : {po.get('po_id')}")
-        lines.append(f"  Vendor         : {po.get('vendor_name')}")
-        lines.append(f"  Issue Date     : {po.get('issue_date')}")
-        lines.append(f"  Status         : {po.get('status')}")
-        lines.append(f"  Payment Terms  : {po.get('payment_terms')}")
-        lines.append(f"  Approved By    : {po.get('approved_by')}")
-        lines.append(f"  Total          : {po.get('total_amount')} {po.get('currency')}")
-        lines.append("  Items Ordered (summary) :")
-        for name, qty in (po.get("items_ordered") or {}).items():
-            lines.append(f"    - {name:30s}  qty={qty}")
-        lines.append("  Line Items (detail) :")
-        for item in po.get("line_items", []):
-            lines.append(
-                f"    - {item['description']:30s}  qty={item['quantity']}  "
-                f"unit=${item['unit_price']}  total=${item['total']}"
-            )
+    candidate_pos = obs.get("candidate_pos") or []
+    if candidate_pos:
+        lines.append("\n=== PURCHASE ORDER CANDIDATES ===")
+        for idx, po in enumerate(candidate_pos):
+            lines.append(f"--- PO [{idx + 1}/{len(candidate_pos)}] ---")
+            lines.append(f"  PO ID          : {po.get('po_id')}")
+            lines.append(f"  Vendor         : {po.get('vendor_name')}")
+            lines.append(f"  Issue Date     : {po.get('issue_date')}")
+            lines.append(f"  Status         : {po.get('status')}")
+            lines.append(f"  Payment Terms  : {po.get('payment_terms')}")
+            lines.append(f"  Total          : {po.get('total_amount')} {po.get('currency')}")
+            lines.append("  Items Ordered (summary) :")
+            for name, qty in (po.get("items_ordered") or {}).items():
+                lines.append(f"    - {name:30s}  qty={qty}")
 
-    grn = obs.get("goods_received_note")
-    if grn:
-        lines.append("\n=== GOODS RECEIVED NOTE ===")
-        lines.append(f"  GRN ID        : {grn.get('grn_id')}")
-        lines.append(f"  PO ID         : {grn.get('po_id')}")
-        lines.append(f"  Received Date : {grn.get('received_date')}")
-        lines.append(f"  Received By   : {grn.get('received_by')}")
-        lines.append("  Items Received :")
-        for item in grn.get("items_received", []):
-            lines.append(
-                f"    - {item['description']:30s}  qty={item['quantity']}  "
-                f"unit=${item['unit_price']}  total=${item['total']}"
-            )
+    grn_log = obs.get("grn_log") or []
+    if grn_log:
+        lines.append("\n=== GOODS RECEIVED NOTES LOG ===")
+        for idx, grn in enumerate(grn_log):
+            lines.append(f"--- GRN [{idx + 1}/{len(grn_log)}] ---")
+            lines.append(f"  GRN ID        : {grn.get('grn_id')}")
+            lines.append(f"  PO ID         : {grn.get('po_id')}")
+            lines.append(f"  Received Date : {grn.get('received_date')}")
+            lines.append("  Items Received :")
+            for item in grn.get("items_received", []):
+                lines.append(
+                    f"    - {item['description']:30s}  qty={item['quantity']}  "
+                    f"unit=${item['unit_price']}  total=${item['total']}"
+                )
 
     return "\n".join(lines)
 
@@ -218,7 +217,7 @@ def run_task(task_id: str) -> dict[str, Any]:
 
     # 1. Reset env
     obs = reset_env(task_id)
-    print(f"[env]  Episode started  →  episode_id: {obs['episode_id']}")
+    print(f"[env]  Episode started  ->  episode_id: {obs['episode_id']}")
 
     # 2. Format observation for LLM
     obs_text = _format_observation(obs)
@@ -243,17 +242,18 @@ def run_task(task_id: str) -> dict[str, Any]:
     ]
 
     # 5. Submit to env
-    final_obs = step_env(action)
-    reward = final_obs["reward"]
-    result = final_obs["info"].get("result", "unknown")
+    reward_data = step_env(action)
+    score = reward_data["score"]
+    reason = reward_data["reason"]
+    is_correct = reward_data["correct_decision_made"]
 
-    print(f"\n[env]  Reward={reward:+.1f}  Result={result}")
-    if "expected_discrepancies" in final_obs["info"]:
-        print(f"[env]  Expected discrepancies : {final_obs['info']['expected_discrepancies']}")
-        print(f"[env]  Flagged discrepancies  : {final_obs['info']['flagged_discrepancies']}")
-        print(f"[env]  Detected discrepancies : {final_obs['info']['detected_discrepancies']}")
+    print(f"\n[env]  Score={score:.2f}  DecisionCorrect={is_correct}")
+    print(f"[env]  Reason: {reason}")
+    
+    # Also print the raw JSON for the evaluator to parse more easily
+    print(f"SCORECARD_JSON: {json.dumps(reward_data)}")
 
-    return final_obs
+    return reward_data
 
 
 def run_all_tasks() -> None:
@@ -289,8 +289,6 @@ def main() -> None:
     parser.add_argument(
         "--task",
         default="all",
-        choices=["easy-exact-match", "medium-fuzzy-match",
-                 "hard-discrepancy-detection", "all"],
         help="Task to run (default: all)",
     )
     parser.add_argument("--base-url", default=None,

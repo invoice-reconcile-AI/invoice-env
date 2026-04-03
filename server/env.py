@@ -32,7 +32,8 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
         "invoice": Invoice(
             invoice_id="INV-1001",
             vendor_name="Acme Supplies Ltd.",
-            invoice_date=date(2025, 3, 10),
+            invoice_date="2025-03-10",
+            due_date="2025-04-09",
             line_items=[
                 LineItem(
                     description="Office Chair",
@@ -49,55 +50,69 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             ],
             subtotal=Decimal("2000.00"),
             tax=Decimal("200.00"),
-            total_amount=Decimal("2200.00"),
+            total_amount=2200.00,
             currency="USD",
-            po_reference="PO-5001",
+            items_billed={"Office Chair": 10, "Desk Lamp": 20},
+            extracted_po_ref="PO-5001",
+            raw_text_content=(
+                "INVOICE\nInvoice No: INV-1001\nDate: 2025-03-10\nDue: 2025-04-09\n"
+                "Vendor: Acme Supplies Ltd.\nPO Reference: PO-5001\n\n"
+                "Office Chair x10 @ $150.00 = $1,500.00\n"
+                "Desk Lamp x20 @ $25.00 = $500.00\n"
+                "Subtotal: $2,000.00  Tax (10%): $200.00  Total: $2,200.00\n"
+                "Payment Terms: Net 30"
+            ),
+            discrepancy_details={},
         ),
-        "purchase_order": PurchaseOrder(
-            po_id="PO-5001",
-            vendor_name="Acme Supplies Ltd.",
-            issue_date=date(2025, 3, 1),
-            line_items=[
-                LineItem(
-                    description="Office Chair",
-                    quantity=Decimal("10"),
-                    unit_price=Decimal("150.00"),
-                    total=Decimal("1500.00"),
-                ),
-                LineItem(
-                    description="Desk Lamp",
-                    quantity=Decimal("20"),
-                    unit_price=Decimal("25.00"),
-                    total=Decimal("500.00"),
-                ),
-            ],
-            total_amount=Decimal("2000.00"),
-            currency="USD",
-            items_ordered={"Office Chair": 10, "Desk Lamp": 20},
-            status="open",
-            payment_terms="Net 30",
-            approved_by="procurement@buyer.com",
-        ),
-        "goods_received_note": GoodsReceivedNote(
-            grn_id="GRN-3001",
-            po_id="PO-5001",
-            received_date=date(2025, 3, 8),
-            items_received=[
-                LineItem(
-                    description="Office Chair",
-                    quantity=Decimal("10"),
-                    unit_price=Decimal("150.00"),
-                    total=Decimal("1500.00"),
-                ),
-                LineItem(
-                    description="Desk Lamp",
-                    quantity=Decimal("20"),
-                    unit_price=Decimal("25.00"),
-                    total=Decimal("500.00"),
-                ),
-            ],
-            received_by="warehouse@buyer.com",
-        ),
+        "candidate_pos": [
+            PurchaseOrder(
+                po_id="PO-5001",
+                vendor_name="Acme Supplies Ltd.",
+                issue_date=date(2025, 3, 1),
+                line_items=[
+                    LineItem(
+                        description="Office Chair",
+                        quantity=Decimal("10"),
+                        unit_price=Decimal("150.00"),
+                        total=Decimal("1500.00"),
+                    ),
+                    LineItem(
+                        description="Desk Lamp",
+                        quantity=Decimal("20"),
+                        unit_price=Decimal("25.00"),
+                        total=Decimal("500.00"),
+                    ),
+                ],
+                total_amount=Decimal("2000.00"),
+                currency="USD",
+                items_ordered={"Office Chair": 10, "Desk Lamp": 20},
+                status="open",
+                payment_terms="Net 30",
+                approved_by="procurement@buyer.com",
+            )
+        ],
+        "grn_log": [
+            GoodsReceivedNote(
+                grn_id="GRN-3001",
+                po_id="PO-5001",
+                received_date=date(2025, 3, 8),
+                items_received=[
+                    LineItem(
+                        description="Office Chair",
+                        quantity=Decimal("10"),
+                        unit_price=Decimal("150.00"),
+                        total=Decimal("1500.00"),
+                    ),
+                    LineItem(
+                        description="Desk Lamp",
+                        quantity=Decimal("20"),
+                        unit_price=Decimal("25.00"),
+                        total=Decimal("500.00"),
+                    ),
+                ],
+                received_by="warehouse@buyer.com",
+            )
+        ],
         "expected_action": ActionType.APPROVE,
         "expected_discrepancies": [],
     },
@@ -108,13 +123,14 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
         ),
         "invoice": Invoice(
             invoice_id="INV-2002",
-            vendor_name="ACME Supplies Ltd",  # capitalisation differs
-            invoice_date=date(2025, 3, 15),
+            vendor_name="ACME Supplies Ltd",  # capitalisation differs — vendor_name_mismatch
+            invoice_date="2025-03-15",
+            due_date="2025-04-14",
             line_items=[
                 LineItem(
                     description="Ergonomic Office Chair",  # slight wording change
                     quantity=Decimal("5"),
-                    unit_price=Decimal("152.00"),  # $2 over PO price
+                    unit_price=Decimal("152.00"),  # $2 over PO price — price_mismatch
                     total=Decimal("760.00"),
                 ),
                 LineItem(
@@ -126,55 +142,75 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             ],
             subtotal=Decimal("1030.00"),
             tax=Decimal("103.00"),
-            total_amount=Decimal("1133.00"),
+            total_amount=1133.00,
             currency="USD",
-            po_reference="PO-5002",
+            items_billed={"Ergonomic Office Chair": 5, "USB Hub 4-Port": 15},
+            extracted_po_ref=None,  # PO ref buried in raw text — forces agent to parse
+            raw_text_content=(
+                "Invoice # INV-2002  |  Date: 15 March 2025  |  Due: 14 April 2025\n"
+                "From: ACME Supplies Ltd (note: formerly Acme Supplies Ltd.)\n"
+                "Re: Purchase Order ref. PO-5002\n\n"
+                "Ergonomic Office Chair (5 units) ........... $152.00/ea = $760.00\n"
+                "USB Hub 4-Port        (15 units) ........... $18.00/ea  = $270.00\n"
+                "                                            Subtotal    $1,030.00\n"
+                "                                            Tax  10%    $  103.00\n"
+                "                                            TOTAL       $1,133.00\n"
+                "Terms: Net 30. Please remit to bank account on file."
+            ),
+            discrepancy_details={
+                "vendor_name_mismatch": {"invoice": "ACME Supplies Ltd", "po": "Acme Supplies Ltd."},
+                "price_mismatch": {"item": "Ergonomic Office Chair", "invoice_price": 152.00, "po_price": 150.00},
+            },
         ),
-        "purchase_order": PurchaseOrder(
-            po_id="PO-5002",
-            vendor_name="Acme Supplies Ltd.",
-            issue_date=date(2025, 3, 5),
-            line_items=[
-                LineItem(
-                    description="Office Chair",
-                    quantity=Decimal("5"),
-                    unit_price=Decimal("150.00"),
-                    total=Decimal("750.00"),
-                ),
-                LineItem(
-                    description="USB Hub 4-Port",
-                    quantity=Decimal("15"),
-                    unit_price=Decimal("18.00"),
-                    total=Decimal("270.00"),
-                ),
-            ],
-            total_amount=Decimal("1020.00"),
-            currency="USD",
-            items_ordered={"Office Chair": 5, "USB Hub 4-Port": 15},
-            status="open",
-            payment_terms="Net 30",
-            approved_by="procurement@buyer.com",
-        ),
-        "goods_received_note": GoodsReceivedNote(
-            grn_id="GRN-3002",
-            po_id="PO-5002",
-            received_date=date(2025, 3, 13),
-            items_received=[
-                LineItem(
-                    description="Office Chair",
-                    quantity=Decimal("5"),
-                    unit_price=Decimal("150.00"),
-                    total=Decimal("750.00"),
-                ),
-                LineItem(
-                    description="USB Hub 4-Port",
-                    quantity=Decimal("15"),
-                    unit_price=Decimal("18.00"),
-                    total=Decimal("270.00"),
-                ),
-            ],
-            received_by="warehouse@buyer.com",
-        ),
+        "candidate_pos": [
+            PurchaseOrder(
+                po_id="PO-5002",
+                vendor_name="Acme Supplies Ltd.",
+                issue_date=date(2025, 3, 5),
+                line_items=[
+                    LineItem(
+                        description="Office Chair",
+                        quantity=Decimal("5"),
+                        unit_price=Decimal("150.00"),
+                        total=Decimal("750.00"),
+                    ),
+                    LineItem(
+                        description="USB Hub 4-Port",
+                        quantity=Decimal("15"),
+                        unit_price=Decimal("18.00"),
+                        total=Decimal("270.00"),
+                    ),
+                ],
+                total_amount=Decimal("1020.00"),
+                currency="USD",
+                items_ordered={"Office Chair": 5, "USB Hub 4-Port": 15},
+                status="open",
+                payment_terms="Net 30",
+                approved_by="procurement@buyer.com",
+            )
+        ],
+        "grn_log": [
+            GoodsReceivedNote(
+                grn_id="GRN-3002",
+                po_id="PO-5002",
+                received_date=date(2025, 3, 13),
+                items_received=[
+                    LineItem(
+                        description="Office Chair",
+                        quantity=Decimal("5"),
+                        unit_price=Decimal("150.00"),
+                        total=Decimal("750.00"),
+                    ),
+                    LineItem(
+                        description="USB Hub 4-Port",
+                        quantity=Decimal("15"),
+                        unit_price=Decimal("18.00"),
+                        total=Decimal("270.00"),
+                    ),
+                ],
+                received_by="warehouse@buyer.com",
+            )
+        ],
         "expected_action": ActionType.FLAG_DISCREPANCY,
         "expected_discrepancies": [
             DiscrepancyType.VENDOR_NAME_MISMATCH,
@@ -189,22 +225,23 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
         "invoice": Invoice(
             invoice_id="INV-3003",
             vendor_name="Global Tech Solutions Inc.",
-            invoice_date=date(2025, 3, 20),
+            invoice_date="2025-03-20",
+            due_date="2025-04-19",
             line_items=[
                 LineItem(
                     description="Laptop Model X",
                     quantity=Decimal("10"),
-                    unit_price=Decimal("1200.00"),  # PO has $1100
+                    unit_price=Decimal("1200.00"),  # PO has $1100 — price_mismatch
                     total=Decimal("12000.00"),
                 ),
                 LineItem(
                     description="Wireless Mouse",
-                    quantity=Decimal("10"),  # only 8 delivered
+                    quantity=Decimal("10"),  # only 8 delivered — quantity_mismatch
                     unit_price=Decimal("35.00"),
                     total=Decimal("350.00"),
                 ),
                 LineItem(
-                    description="Extended Warranty",  # not in PO
+                    description="Extended Warranty",  # not in PO — extra_charge
                     quantity=Decimal("10"),
                     unit_price=Decimal("50.00"),
                     total=Decimal("500.00"),
@@ -212,55 +249,78 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
             ],
             subtotal=Decimal("12850.00"),
             tax=Decimal("1285.00"),
-            total_amount=Decimal("14135.00"),
+            total_amount=14135.00,
             currency="USD",
-            po_reference="PO-5003",
+            items_billed={"Laptop Model X": 10, "Wireless Mouse": 10, "Extended Warranty": 10},
+            extracted_po_ref="PO-5003",
+            raw_text_content=(
+                "TAX INVOICE\nInvoice: INV-3003  Date: 20-Mar-2025  Due: 19-Apr-2025\n"
+                "Supplier: Global Tech Solutions Inc.\n"
+                "Bill To: Buyer Corp   PO#: PO-5003\n\n"
+                "1. Laptop Model X        qty=10  unit=$1,200.00  line=$12,000.00\n"
+                "   ** Note: price adjusted from $1,100 due to component cost increase **\n"
+                "2. Wireless Mouse        qty=10  unit=$35.00     line=$350.00\n"
+                "   (GRN shows only 8 units received as of 2025-03-18)\n"
+                "3. Extended Warranty     qty=10  unit=$50.00     line=$500.00\n"
+                "   ** Not listed in original PO; added post-shipment **\n\n"
+                "Subtotal: $12,850.00  |  Tax (10%): $1,285.00  |  TOTAL DUE: $14,135.00\n"
+                "Payment Terms: Net 30"
+            ),
+            discrepancy_details={
+                "price_mismatch": {"item": "Laptop Model X", "invoice_price": 1200.00, "po_price": 1100.00},
+                "quantity_mismatch": {"item": "Wireless Mouse", "invoiced": 10, "received": 8},
+                "extra_charge": {"item": "Extended Warranty", "po_entry": None},
+            },
         ),
-        "purchase_order": PurchaseOrder(
-            po_id="PO-5003",
-            vendor_name="Global Tech Solutions Inc.",
-            issue_date=date(2025, 3, 10),
-            line_items=[
-                LineItem(
-                    description="Laptop Model X",
-                    quantity=Decimal("10"),
-                    unit_price=Decimal("1100.00"),
-                    total=Decimal("11000.00"),
-                ),
-                LineItem(
-                    description="Wireless Mouse",
-                    quantity=Decimal("10"),
-                    unit_price=Decimal("35.00"),
-                    total=Decimal("350.00"),
-                ),
-            ],
-            total_amount=Decimal("11350.00"),
-            currency="USD",
-            items_ordered={"Laptop Model X": 10, "Wireless Mouse": 10},
-            status="open",
-            payment_terms="Net 30",
-            approved_by="procurement@buyer.com",
-        ),
-        "goods_received_note": GoodsReceivedNote(
-            grn_id="GRN-3003",
-            po_id="PO-5003",
-            received_date=date(2025, 3, 18),
-            items_received=[
-                LineItem(
-                    description="Laptop Model X",
-                    quantity=Decimal("10"),
-                    unit_price=Decimal("1100.00"),
-                    total=Decimal("11000.00"),
-                ),
-                LineItem(
-                    description="Wireless Mouse",
-                    quantity=Decimal("8"),  # only 8 received
-                    unit_price=Decimal("35.00"),
-                    total=Decimal("280.00"),
-                ),
-            ],
-            received_by="warehouse@buyer.com",
-        ),
+        "candidate_pos": [
+            PurchaseOrder(
+                po_id="PO-5003",
+                vendor_name="Global Tech Solutions Inc.",
+                issue_date=date(2025, 3, 10),
+                line_items=[
+                    LineItem(
+                        description="Laptop Model X",
+                        quantity=Decimal("10"),
+                        unit_price=Decimal("1100.00"),
+                        total=Decimal("11000.00"),
+                    ),
+                    LineItem(
+                        description="Wireless Mouse",
+                        quantity=Decimal("10"),
+                        unit_price=Decimal("35.00"),
+                        total=Decimal("350.00"),
+                    ),
+                ],
+                total_amount=Decimal("11350.00"),
+                currency="USD",
+                items_ordered={"Laptop Model X": 10, "Wireless Mouse": 10},
+                status="open",
+                payment_terms="Net 30",
+                approved_by="procurement@buyer.com",
+            )
+        ],
+        "grn_log": [
+            GoodsReceivedNote(
+                grn_id="GRN-3003",
+                po_id="PO-5003",
+                received_date=date(2025, 3, 18),
+                items_received=[
+                    LineItem(
+                        description="Laptop Model X",
+                        quantity=Decimal("10"),
+                        unit_price=Decimal("1100.00"),
+                        total=Decimal("11000.00"),
+                    ),
+                    LineItem(
+                        description="Wireless Mouse",
+                        quantity=Decimal("8"),  # only 8 received
+                        unit_price=Decimal("35.00"),
+                        total=Decimal("280.00"),
+                    ),
+                ],
+                received_by="warehouse@buyer.com",
+            )
+        ],
         "expected_action": ActionType.REJECT,
         "expected_discrepancies": [
             DiscrepancyType.PRICE_MISMATCH,
@@ -295,6 +355,7 @@ class InvoiceReconciliationEnv:
     def __init__(self) -> None:
         self._observation: InvoiceObservation | None = None
         self._scenario: dict[str, Any] | None = None
+        self.current_ground_truth: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------
     # Public OpenEnv API
@@ -302,13 +363,57 @@ class InvoiceReconciliationEnv:
 
     def reset(self, task_id: str) -> InvoiceObservation:
         """Initialise a new episode for *task_id* and return the first observation."""
-        if task_id not in _SCENARIOS:
+        if task_id in _SCENARIOS:
+            self._scenario = _SCENARIOS[task_id]
+        elif task_id.startswith(("easy_", "medium_", "hard_")):
+            difficulty = task_id.split("_")[0]
+            from server.data_generator import InvoiceDataGenerator
+            
+            seed_str = "".join(filter(str.isdigit, task_id))
+            seed = int(seed_str) if seed_str else None
+            
+            gen = InvoiceDataGenerator(seed=seed)
+            invoice, pos, grns, true_po_id, decision_str, disc_details = gen.generate_task_data(difficulty)
+            
+            decision_map = {
+                "pay": ActionType.APPROVE,
+                "hold": ActionType.FLAG_DISCREPANCY,
+                "flag": ActionType.REJECT
+            }
+            expected_action = decision_map.get(decision_str, ActionType.ESCALATE)
+            
+            expected_discrepancies = []
+            if "amount_diff" in disc_details or "major_price_mismatch" in disc_details or "price_mismatch" in disc_details:
+                expected_discrepancies.append(DiscrepancyType.PRICE_MISMATCH)
+            if "vendor_name_variation" in disc_details or "incorrect_vendor" in disc_details:
+                expected_discrepancies.append(DiscrepancyType.VENDOR_NAME_MISMATCH)
+            if "quantity_mismatch" in disc_details or "quantity_billed_over" in disc_details:
+                expected_discrepancies.append(DiscrepancyType.QUANTITY_MISMATCH)
+            if "item_added_to_invoice" in disc_details:
+                expected_discrepancies.append(DiscrepancyType.EXTRA_CHARGE)
+            if "item_removed_from_invoice" in disc_details:
+                expected_discrepancies.append(DiscrepancyType.MISSING_LINE_ITEM)
+                
+            self._scenario = {
+                "description": f"Dynamic {difficulty} task: {task_id}",
+                "invoice": invoice,
+                "candidate_pos": pos,
+                "grn_log": grns,
+                "expected_action": expected_action,
+                "expected_discrepancies": expected_discrepancies
+            }
+            # Add ground truth for precise evaluation
+            self.current_ground_truth = {
+                "true_po_id": true_po_id,
+                "correct_decision": decision_str,
+                "discrepancy_details": disc_details
+            }
+        else:
             raise ValueError(
                 f"Unknown task_id '{task_id}'. "
-                f"Valid tasks: {list(_SCENARIOS.keys())}"
+                f"Valid tasks: easy_N, medium_N, hard_N or {list(_SCENARIOS.keys())}"
             )
 
-        self._scenario = _SCENARIOS[task_id]
         episode_id = str(uuid.uuid4())
 
         self._observation = InvoiceObservation(
@@ -316,8 +421,8 @@ class InvoiceReconciliationEnv:
             task_id=task_id,
             step=0,
             invoice=self._scenario["invoice"],
-            purchase_order=self._scenario.get("purchase_order"),
-            goods_received_note=self._scenario.get("goods_received_note"),
+            candidate_pos=self._scenario.get("candidate_pos", []),
+            grn_log=self._scenario.get("grn_log", []),
             discrepancies=[],
             is_done=False,
             reward=0.0,
@@ -325,38 +430,100 @@ class InvoiceReconciliationEnv:
         )
         return self._observation
 
-    def step(self, action: InvoiceAction) -> InvoiceObservation:
-        """Process *action* and return the updated observation.
-
-        Rewards:
-        - ``+1.0`` for a fully correct action (right type + all discrepancies flagged).
-        - ``+0.5`` for a partially correct action (right type, incomplete discrepancy set).
-        - ``-1.0`` for an incorrect action type.
-        """
+    def step(self, action: InvoiceAction) -> InvoiceReward:
+        """Process *action* and return the detailed reward."""
         if self._observation is None or self._scenario is None:
             raise RuntimeError("Call reset() before step().")
         if self._observation.is_done:
             raise RuntimeError("Episode is already finished. Call reset() to start a new one.")
 
-        expected_action: ActionType = self._scenario["expected_action"]
-        expected_disc: list[DiscrepancyType] = self._scenario["expected_discrepancies"]
+        # If it's a static scenario, ground truth isn't fully structured yet, so we bridge it
+        if self.current_ground_truth is None:
+            # Fallback for static scenarios
+            disc_types = {d.value for d in self._scenario.get("expected_discrepancies", [])}
+            self.current_ground_truth = {
+                "true_po_id": self._scenario.get("candidate_pos", [None])[0].po_id if self._scenario.get("candidate_pos") else None,
+                "correct_decision": self._scenario["expected_action"].value if isinstance(self._scenario["expected_action"], ActionType) else self._scenario["expected_action"],
+                "discrepancy_details": {d: {} for d in disc_types}
+            }
 
-        detected = self._detect_discrepancies()
-        reward, info = self._evaluate(action, expected_action, expected_disc, detected)
+        # --- REWARD CALCULATION LOGIC (0.0 to 1.0) ---
+        score = 0.0
+        reason_parts = []
+        gt = self.current_ground_truth
 
-        self._observation = InvoiceObservation(
-            episode_id=self._observation.episode_id,
-            task_id=self._observation.task_id,
-            step=self._observation.step + 1,
-            invoice=self._observation.invoice,
-            purchase_order=self._observation.purchase_order,
-            goods_received_note=self._observation.goods_received_note,
-            discrepancies=detected,
-            is_done=True,
-            reward=reward,
-            info=info,
+        # 1. Correct Action Type (0.5 points)
+        # Map our ActionType to the decision strings (pay/hold/flag)
+        decision_map = {
+            ActionType.APPROVE: "pay",
+            ActionType.FLAG_DISCREPANCY: "hold",
+            ActionType.REJECT: "flag"
+        }
+        gt_decision = gt["correct_decision"]
+        agent_decision = decision_map.get(action.action_type, "other")
+
+        correct_decision_made = (agent_decision == gt_decision)
+        if correct_decision_made:
+            score += 0.5
+            reason_parts.append("Correct overall decision (0.5 pts).")
+        else:
+            reason_parts.append(f"Incorrect decision: Agent chose '{agent_decision}', expected '{gt_decision}' (0.0 pts).")
+
+        # 2. Correct PO Linkage (0.2 points)
+        correct_po_identified = (action.matched_po_id == gt["true_po_id"])
+        if correct_po_identified:
+            score += 0.2
+            reason_parts.append("Correct PO identified (0.2 pts).")
+        else:
+            reason_parts.append(f"Incorrect PO: Agent linked '{action.matched_po_id}', expected '{gt['true_po_id']}' (0.0 pts).")
+
+        # 3. Discrepancy Detection & Detailed Reasoning (0.3 points)
+        discrepancy_correctly_noted = False
+        disc_details = gt["discrepancy_details"]
+        if disc_details:
+            # Check if agent's reasoning or discrepancies flagged indicate awareness
+            reasoning = action.reasoning.lower() if action.reasoning else ""
+            found_match = False
+            for d_name in disc_details.keys():
+                if d_name.replace('_', ' ') in reasoning or d_name in reasoning:
+                    found_match = True
+                    break
+            
+            # Also check if they used specific discrepancy flags
+            if not found_match and action.discrepancy_flags:
+                # If they flagged anything and there are discrepancies, we give partial credit
+                # But here we stick to the 0.3 all-or-nothing for simplicity
+                found_match = True 
+
+            if found_match:
+                score += 0.3
+                discrepancy_correctly_noted = True
+                reason_parts.append("Relevant discrepancy noted in reasoning/flags (0.3 pts).")
+            else:
+                reason_parts.append("Discrepancies present, but not clearly identified by agent (0.0 pts).")
+        else:
+            # No discrepancies
+            if not action.discrepancy_flags and (not action.reasoning or "no discrepancy" in action.reasoning.lower()):
+                score += 0.3
+                discrepancy_correctly_noted = True
+                reason_parts.append("Correctly noted no discrepancy (0.3 pts).")
+            else:
+                reason_parts.append("No discrepancies present, but agent flagged something or didn't confirm clean status (0.0 pts).")
+
+        final_score = round(min(score, 1.0), 2)
+        from server.models import InvoiceReward
+        
+        # Mark episode as done
+        self._observation.is_done = True
+        self._observation.reward = final_score
+
+        return InvoiceReward(
+            score=final_score,
+            correct_decision_made=correct_decision_made,
+            correct_po_identified=correct_po_identified,
+            discrepancy_correctly_noted=discrepancy_correctly_noted,
+            reason=" | ".join(reason_parts)
         )
-        return self._observation
 
     def state(self) -> InvoiceObservation:
         """Return the current observation without advancing the episode."""
@@ -373,8 +540,11 @@ class InvoiceReconciliationEnv:
         assert self._scenario is not None
         discrepancies: list[Discrepancy] = []
         invoice: Invoice = self._scenario["invoice"]
-        po: PurchaseOrder | None = self._scenario.get("purchase_order")
-        grn: GoodsReceivedNote | None = self._scenario.get("goods_received_note")
+        candidate_pos: list[PurchaseOrder] = self._scenario.get("candidate_pos", [])
+        grn_log: list[GoodsReceivedNote] = self._scenario.get("grn_log", [])
+
+        po: PurchaseOrder | None = candidate_pos[0] if candidate_pos else None
+        grn: GoodsReceivedNote | None = grn_log[0] if grn_log else None
 
         if po is None:
             discrepancies.append(

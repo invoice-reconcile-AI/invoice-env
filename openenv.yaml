@@ -58,8 +58,8 @@ observation_space:
     task_id: string
     step: integer
     invoice: Invoice
-    purchase_order: PurchaseOrder
-    goods_received_note: GoodsReceivedNote
+    candidate_pos: "list[PurchaseOrder]"
+    grn_log: "list[GoodsReceivedNote]"
     discrepancies: "list[Discrepancy]"
     is_done: boolean
     reward: float

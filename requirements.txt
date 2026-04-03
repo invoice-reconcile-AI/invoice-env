@@ -7,3 +7,6 @@ requests>=2.31.0
 together>=1.3.0          # Meta Llama via Together AI (recommended for hackathon)
 # groq>=0.9.0            # Groq (fast Llama inference)
 # openai>=1.30.0         # OpenAI-compatible
+
+# Data generation
+faker>=33.1.0
