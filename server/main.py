@@ -6,22 +6,23 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from server.env import env
-from server.models import InvoiceAction, InvoiceObservation
+from server.env import _SCENARIOS, env
+from server.models import InvoiceActionWrapper, InvoiceObservation
 
 app = FastAPI(
     title="Invoice Reconciliation OpenEnv",
     description=(
-        "An OpenEnv-compatible reinforcement-learning environment for automated "
+        "A multi-step OpenEnv-compatible RL environment for automated "
         "invoice-to-payment reconciliation. Supports 3 difficulty tiers: "
-        "easy-exact-match, medium-fuzzy-match, and hard-discrepancy-detection."
+        "easy-exact-match, medium-fuzzy-match, hard-discrepancy-detection. "
+        "\n\nEpisode stages: select_po → compare_items → flag_discrepancies → final_decision."
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
 
 class ResetRequest(BaseModel):
-    task_id: str
+    task_id: str = "easy-exact-match"  # default so empty body doesn't 422
 
 
 @app.get("/health")
@@ -31,8 +32,14 @@ def health() -> dict[str, str]:
 
 
 @app.post("/reset", response_model=InvoiceObservation)
-def reset(request: ResetRequest) -> InvoiceObservation:
-    """Start a new episode for the given task_id."""
+def reset(request: ResetRequest = None) -> InvoiceObservation:
+    """Start a new episode for the given task_id.
+
+    Accepts an optional JSON body: {"task_id": "easy-exact-match"}
+    If no body is sent (or empty body), defaults to 'easy-exact-match'.
+    """
+    if request is None:
+        request = ResetRequest()
     try:
         return env.reset(request.task_id)
     except ValueError as exc:
@@ -40,10 +47,28 @@ def reset(request: ResetRequest) -> InvoiceObservation:
 
 
 @app.post("/step", response_model=InvoiceObservation)
-def step(action: InvoiceAction) -> InvoiceObservation:
-    """Submit an action and receive the next observation."""
+def step(payload: InvoiceActionWrapper) -> InvoiceObservation:
+    """Submit a stage-appropriate action and receive the next observation.
+
+    The request body must be:
+
+    ```json
+    {
+      "action": {
+        "action_type": "select_po",
+        "po_id": "PO-5001"
+      }
+    }
+    ```
+
+    Where ``action_type`` is one of:
+    - ``"select_po"``       → Stage 1
+    - ``"compare_item"``    → Stage 2  (repeat for each invoice line item)
+    - ``"flag_discrepancy"``→ Stage 3  (repeat for each discrepancy found)
+    - ``"final_decision"``  → Stage 4  (terminates episode, ``is_done=true``)
+    """
     try:
-        return env.step(action)
+        return env.step(payload.action)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -59,13 +84,18 @@ def state() -> InvoiceObservation:
 
 @app.get("/tasks")
 def list_tasks() -> JSONResponse:
-    """List all available task IDs."""
-    from server.env import _SCENARIOS  # noqa: PLC0415
-
+    """List all available task IDs with difficulty metadata."""
     return JSONResponse(
         content={
             "tasks": [
-                {"task_id": tid, "description": scenario["description"]}
+                {
+                    "task_id": tid,
+                    "description": scenario["description"],
+                    "expected_final_action": scenario["expected_final_action"],
+                    "expected_discrepancies": [
+                        d.value for d in scenario["expected_discrepancies"]
+                    ],
+                }
                 for tid, scenario in _SCENARIOS.items()
             ]
         }

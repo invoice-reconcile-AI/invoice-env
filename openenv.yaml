@@ -1,10 +1,15 @@
 environment: invoice-reconciliation
-version: "1.0.0"
+version: "2.0.0"
 description: >
-  OpenEnv environment for automated Invoice-to-Payment reconciliation.
-  An AI agent receives an Invoice, matching Purchase Order, and Goods
-  Received Note, then must identify discrepancies and take an appropriate
-  action (approve, reject, flag, etc.).
+  Multi-step OpenEnv environment for automated Invoice-to-Payment reconciliation.
+  An AI agent interacts over 4 ordered stages to reconcile an Invoice against a
+  Purchase Order and Goods Received Note:
+    Stage 1 – select_po:           Agent picks the correct PO from candidates.
+    Stage 2 – compare_items:       Agent compares each invoice line item vs PO/GRN.
+    Stage 3 – flag_discrepancies:  Agent explicitly flags every discrepancy found.
+    Stage 4 – final_decision:      Agent issues the definitive approve/flag/reject.
+  Rewards are incremental at every step, providing meaningful partial signals.
+  Each episode returns a normalized_score in [0.0, 1.0] relative to max_reward.
 
 server:
   base_url: http://localhost:8000
@@ -16,36 +21,64 @@ server:
 tasks:
   - id: easy-exact-match
     description: >
-      Invoice amounts, quantities, and vendor name exactly match the
-      Purchase Order and Goods Received Note. The correct action is to
-      APPROVE the invoice without flagging any discrepancies.
+      Invoice amounts, quantities, and vendor name exactly match the Purchase Order
+      and Goods Received Note. One distractor PO from a different vendor is also
+      presented. The correct sequence is: select PO-5001, compare all items
+      (all match), flag no discrepancies, then APPROVE.
     difficulty: easy
-    max_steps: 1
-    reward_threshold: 1.0
+    max_steps: 8
+    reward_threshold: 0.6
+    max_reward: 0.80
+    normalized_perfect_score: 1.0
+    expected_discrepancies: []
 
   - id: medium-fuzzy-match
     description: >
-      The vendor name contains minor capitalisation differences and one
-      line-item unit price is slightly higher than the PO value. The agent
-      must detect these discrepancies via fuzzy matching and FLAG them
-      rather than blindly approving or rejecting.
+      The vendor name contains minor capitalisation differences and one line-item
+      unit price is $2 higher than the PO value. A distractor PO from a different
+      vendor is presented. The agent must apply fuzzy matching, detect both
+      discrepancies, and FLAG the invoice.
     difficulty: medium
-    max_steps: 1
-    reward_threshold: 1.0
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.00
+    normalized_perfect_score: 1.0
     expected_discrepancies:
       - vendor_name_mismatch
       - price_mismatch
 
   - id: hard-discrepancy-detection
     description: >
-      Multiple overlapping discrepancies are present: a unit-price
-      overcharge on a high-value item, a quantity billed for goods not
-      fully received (partial delivery), and an extra line item (extended
-      warranty) that has no corresponding PO entry. The agent must detect
-      ALL discrepancies and REJECT the invoice.
+      Multiple overlapping discrepancies: a $100/unit price overcharge on a
+      high-value laptop item, a quantity invoiced for 10 wireless mice but only 8
+      received, and an extra "Extended Warranty" line item absent from the PO.
+      A distractor PO from "Global Tech Solutions" (without "Inc.") is included.
+      The agent must detect ALL three discrepancies and REJECT the invoice.
     difficulty: hard
-    max_steps: 1
-    reward_threshold: 1.0
+    max_steps: 12
+    reward_threshold: 0.6
+    max_reward: 1.20
+    normalized_perfect_score: 1.0
+    expected_discrepancies:
+      - price_mismatch
+      - quantity_mismatch
+      - extra_charge
+
+  - id: ambiguous-split-invoice
+    description: >
+      No PO reference appears on the invoice. Two candidate POs both partially
+      cover the line items: PO-6001 (exact vendor name, covers main hardware)
+      and PO-6002 (fuzzy vendor name variant "Skybridge solutions", covers
+      services). The agent must reason about which PO is the primary match
+      (PO-6001 — exact vendor, more total value covered) and then identify
+      three discrepancies: a $2/unit price overcharge on CAT6 cables, a
+      quantity shortfall (50 invoiced vs 45 received), and an extra
+      "Installation Service" charge not in PO-6001. Final action: REJECT.
+    difficulty: ambiguous
+    max_steps: 14
+    reward_threshold: 0.6
+    max_reward: 1.20
+    normalized_perfect_score: 1.0
     expected_discrepancies:
       - price_mismatch
       - quantity_mismatch
@@ -54,32 +87,69 @@ tasks:
 observation_space:
   type: object
   fields:
-    episode_id: string
-    task_id: string
-    step: integer
-    invoice: Invoice
-    purchase_order: PurchaseOrder
+    episode_id:          string
+    task_id:             string
+    step:                integer
+    invoice:             Invoice
+    available_pos:       "list[PurchaseOrder]"
     goods_received_note: GoodsReceivedNote
-    discrepancies: "list[Discrepancy]"
-    is_done: boolean
-    reward: float
-    info: object
+    selected_po:         "PurchaseOrder | null"
+    comparison_results:  "list[object]"
+    flagged_discrepancies: "list[Discrepancy]"
+    stage:
+      type: enum
+      values: [select_po, compare_items, flag_discrepancies, final_decision, finished]
+    is_done:             boolean
+    reward:              float
+    cumulative_reward:   float
+    info:                object
+    feedback:            string
 
 action_space:
-  type: object
-  fields:
-    action_type:
-      type: enum
-      values: [approve, reject, flag_discrepancy, request_credit_note, escalate, match_to_po]
-    discrepancy_flags:
-      type: "list[enum]"
-      values: [price_mismatch, quantity_mismatch, vendor_name_mismatch,
-               po_not_found, duplicate_invoice, partial_delivery,
-               extra_charge, missing_line_item]
-    matched_po_id: "string | null"
-    reasoning: "string | null"
+  type: discriminated_union
+  discriminator: action_type
+  variants:
+    - action_type: select_po
+      fields:
+        po_id:     string
+        reasoning: "string | null"
+
+    - action_type: compare_item
+      fields:
+        invoice_item_index:  integer
+        po_item_description: string
+        found_in_po:         boolean
+        price_matches:       boolean
+        quantity_matches:    boolean
+
+    - action_type: flag_discrepancy
+      fields:
+        discrepancy_type:
+          type: enum
+          values: [price_mismatch, quantity_mismatch, vendor_name_mismatch,
+                   po_not_found, duplicate_invoice, partial_delivery,
+                   extra_charge, missing_line_item]
+        details: string
+
+    - action_type: final_decision
+      fields:
+        decision:
+          type: enum
+          values: [approve, flag_discrepancy, reject]
+        matched_po_id:      "string | null"
+        reasoning:          "string | null"
+        discrepancy_flags:
+          type: "list[enum]"
+          values: [price_mismatch, quantity_mismatch, vendor_name_mismatch,
+                   po_not_found, duplicate_invoice, partial_delivery,
+                   extra_charge, missing_line_item]
 
 rewards:
-  correct: 1.0
-  partial: 0.5
-  incorrect: -1.0
+  stage1_correct_po_selection:  0.20
+  stage2_per_item_all_correct:  0.10
+  stage2_per_item_partial:      0.04
+  stage3_valid_discrepancy_flag: 0.10
+  stage3_spurious_flag_penalty: -0.05
+  stage4_correct_decision:      0.30
+  stage4_discrepancy_coverage:  0.10   # prorated by fraction of expected flags covered
+  wrong_stage_action:           -0.05
