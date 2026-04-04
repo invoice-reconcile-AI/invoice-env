@@ -409,38 +409,36 @@ def _build_flag_discrepancy_prompt(obs: Dict[str, Any]) -> str:
 
 
 def _make_flag_discrepancy_actions(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
-    raw_text_container: List[str] = []
-
     messages = [
         {"role": "system", "content": _FLAG_DISCREPANCY_SYSTEM},
         {"role": "user",   "content": _build_flag_discrepancy_prompt(obs)},
     ]
 
-    # Get raw LLM output
-    provider = LLM_PROVIDER.lower()
-    if provider == "together":
-        from together import Together
-        client = Together(api_key=LLM_API_KEY or None)
-        resp = client.chat.completions.create(
-            model=LLM_MODEL, messages=messages, temperature=0.0, max_tokens=800,
-        )
-        raw_text_container.append(resp.choices[0].message.content or "")
-    elif provider == "groq":
-        from groq import Groq
-        client = Groq(api_key=LLM_API_KEY or None)
-        resp = client.chat.completions.create(
-            model=LLM_MODEL, messages=messages, temperature=0.0, max_tokens=800,
-        )
-        raw_text_container.append(resp.choices[0].message.content or "")
-    else:
-        from openai import OpenAI
-        client = OpenAI(api_key=LLM_API_KEY or None)
-        resp = client.chat.completions.create(
-            model=LLM_MODEL, messages=messages, temperature=0.0, max_tokens=800,
-        )
-        raw_text_container.append(resp.choices[0].message.content or "")
+    # Use resilient call_llm() — has full 3-provider fallback, never raises
+    # It returns a dict, but flag stage needs raw text for array parsing.
+    # So we call the raw providers with try/except via our own safe wrapper.
+    raw_text = ""
+    try:
+        _CALLERS_RAW = {
+            "groq":     lambda m: __import__("groq").Groq(api_key=LLM_API_KEY or None).chat.completions.create(model=LLM_MODEL, messages=m, temperature=0.0, max_tokens=800).choices[0].message.content or "",
+            "together": lambda m: __import__("together").Together(api_key=LLM_API_KEY or None).chat.completions.create(model=LLM_MODEL, messages=m, temperature=0.0, max_tokens=800).choices[0].message.content or "",
+            "openai":   lambda m: __import__("openai").OpenAI(api_key=LLM_API_KEY or None).chat.completions.create(model=LLM_MODEL, messages=m, temperature=0.0, max_tokens=800).choices[0].message.content or "",
+        }
+        provider = LLM_PROVIDER.lower()
+        ordered = [provider] + [p for p in _CALLERS_RAW if p != provider]
+        for attempt in ordered:
+            try:
+                raw_text = _CALLERS_RAW[attempt](messages)
+                if attempt != provider:
+                    _dbg(f"[fallback] flag_discrepancy used '{attempt}'")
+                break
+            except Exception as exc:
+                _dbg(f"[warn] flag_discrepancy provider '{attempt}' failed: {exc}")
+    except Exception as exc:
+        _dbg(f"[warn] flag_discrepancy all providers failed: {exc}")
+        return []  # safe fallback — no flags, episode continues to Stage 4
 
-    raw_text = raw_text_container[0].strip()
+    raw_text = raw_text.strip()
     _dbg(f"flag_discrepancy LLM raw text: {raw_text[:400]}")
 
     # Strip markdown fences
