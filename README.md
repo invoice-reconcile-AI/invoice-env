@@ -21,10 +21,11 @@ This reflects real enterprise decision pipelines used in accounts payable system
 
 ## 👥 Team
 
-Name        Role
-Mathir      Environment design & backend
-Dharshini   Inference agent & evaluation
-Harish      Testing & validation
+| Name       | Role                                  |
+|------------|---------------------------------------|
+| Mathir     | Environment design & backend          |
+| Dharshini  | Inference agent & evaluation          |
+| Harish     | Testing & validation                  |
 
 ---
 
