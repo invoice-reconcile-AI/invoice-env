@@ -22,11 +22,13 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Optional: Mount frontend folder for static assets (images, CSS, JS) if needed
-# Use a path relative to the root where the server is typically started
-frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-if os.path.exists(frontend_dir):
-    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+# Mounting static files from the frontend folder
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+# Serving the UI at the root route
+@app.get("/")
+def serve_ui():
+    return FileResponse("frontend/index.html")
 
 
 class ResetRequest(BaseModel):
@@ -108,12 +110,3 @@ def list_tasks() -> JSONResponse:
             ]
         }
     )
-
-@app.get("/web", response_class=FileResponse)
-@app.get("/", response_class=FileResponse)
-def serve_ui():
-    """Serves the interactive UI dashboard."""
-    ui_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
-    if os.path.exists(ui_path):
-        return FileResponse(ui_path)
-    raise HTTPException(status_code=404, detail="UI file not found. Ensure frontend/index.html exists.")
