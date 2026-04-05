@@ -671,19 +671,21 @@ class InvoiceReconciliationEnv:
         matched_po_key = _fuzzy_match_key(inv_key, po_items.keys())
 
         gt_found_in_po = matched_po_key is not None
-        gt_price_matches = True
-        gt_qty_matches = True
+        gt_price_matches = False
+        gt_qty_matches = False
 
         if gt_found_in_po and matched_po_key:
             po_item = po_items[matched_po_key]
             gt_price_matches = inv_item.unit_price == po_item.unit_price
 
-        if grn:
-            grn_items = {" ".join(i.description.lower().split()): i for i in grn.items_received}
-            matched_grn_key = _fuzzy_match_key(inv_key, grn_items.keys())
-            if matched_grn_key:
-                grn_item = grn_items[matched_grn_key]
-                gt_qty_matches = inv_item.quantity == grn_item.quantity
+            if grn:
+                grn_items = {" ".join(i.description.lower().split()): i for i in grn.items_received}
+                matched_grn_key = _fuzzy_match_key(inv_key, grn_items.keys())
+                if matched_grn_key:
+                    grn_item = grn_items[matched_grn_key]
+                    gt_qty_matches = inv_item.quantity == grn_item.quantity
+        else:
+            gt_qty_matches = False
 
         # --- Evaluate agent's claim ---
         found_correct    = action.found_in_po == gt_found_in_po

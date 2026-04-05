@@ -130,6 +130,8 @@ def _dbg(msg: str) -> None:
 
 def _post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     resp = requests.post(f"{ENV_BASE_URL}{path}", json=payload, timeout=30)
+    if not resp.ok:
+        _dbg(f"HTTP {resp.status_code} on {path}: {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()
 

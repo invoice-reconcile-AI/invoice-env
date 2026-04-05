@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
+import os
 
 from server.env import _SCENARIOS, env
 from server.models import InvoiceActionWrapper, InvoiceObservation
@@ -100,3 +101,14 @@ def list_tasks() -> JSONResponse:
             ]
         }
     )
+
+@app.get("/web", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
+def serve_ui():
+    """Serves the interactive UI dashboard."""
+    ui_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
+    try:
+        with open(ui_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="UI file not found. Ensure frontend/index.html exists.")

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Luminix AI Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: #020617;
+      border-right: 1px solid #1e293b;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar h2 { margin: 0 0 4px; font-size: 20px; color: #fff; }
+    .sidebar p { margin: 0 0 24px; color: #94a3b8; font-size: 13px; font-weight: 500; }
+    
+    #timeline { flex: 1; font-size: 13px; line-height: 2.2; color: #cbd5e1; }
+    .log-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 500; }
+    .log-item.success::before { content: '✔'; color: #22c55e; font-weight: bold; }
+
+    .main {
+      flex: 1;
+      padding: 32px;
+      display: flex;
+      gap: 32px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+
+    .center-col {
+      flex: 1;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .right-col {
+      flex: 1;
+      max-width: 450px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: #111827;
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+      transition: all 0.3s ease;
+    }
+
+    .card.active-step {
+      border: 2px solid #3b82f6;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+      background: #151e32;
+    }
+
+    h3 {
+      margin: 0 0 16px;
+      font-size: 15px;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button {
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      width: 100%;
+      font-weight: 600;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    button:disabled { background: #334155; color: #94a3b8; cursor: not-allowed; }
+
+    select {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: white;
+      font-size: 14px;
+      outline: none;
+      margin-bottom: 12px;
+      appearance: none;
+      cursor: pointer;
+    }
+    select:focus { border-color: #3b82f6; }
+    select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Right Panel specific */
+    .status-box {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #3b82f6;
+      font-family: monospace;
+    }
+
+    .result-summary {
+      background: transparent;
+      line-height: 1.8;
+      font-size: 14px;
+    }
+    
+    .current-stage-banner {
+      background: rgba(59, 130, 246, 0.1);
+      color: #60a5fa;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+  </style>
+</head>
+
+<body>
+
+<!-- LEFT SIDEBAR -->
+<div class="sidebar">
+  <h2>Luminix</h2>
+  <p>AI Decision Pipeline</p>
+  <div id="timeline">
+    <div style="color: #64748b; font-size: 12px; font-style: italic;">Awaiting session start...</div>
+  </div>
+</div>
+
+<div class="main" id="main-scroll">
+  
+  <!-- CENTER PANEL: CONTROL CARDS -->
+  <div class="center-col">
+    
+    <div style="padding:14px; background:#111827; border-radius:8px; border: 1px solid #1e293b; color: #cbd5e1; font-size: 13px; font-weight: 500; display:flex; align-items:center; justify-content:space-between;">
+      <span><b>Flow:</b> 1️⃣ Initialize → 2️⃣ Select PO → 3️⃣ Run Analysis → 4️⃣ Generate Decision</span>
+      <button onclick="location.reload()" style="background:#334155; width:auto; padding:6px 12px; font-size:12px; margin:0;">🔄 Restart</button>
+    </div>
+
+    <div class="card active-step" id="card-start">
+      <h3>🚀 Step 1: Start</h3>
+      <select id="taskDropdown" style="margin-bottom: 12px;">
+        <option value="easy-exact-match">Scenario: Easy (Perfect Match)</option>
+        <option value="medium-fuzzy-match">Scenario: Medium (Fuzzy Match)</option>
+        <option value="hard-discrepancy-detection">Scenario: Hard (Multi-Discrepancy)</option>
+        <option value="ambiguous-split-invoice">Scenario: Ambiguous (Split PO)</option>
+      </select>
+      <button id="btn-start" onclick="initialize()">[ 🚀 Start ]</button>
+    </div>
+
+    <div class="card" id="card-po">
+      <h3>📦 Step 2: Select Purchase Order</h3>
+      <select id="poDropdown" disabled>
+        <option>Awaiting backend data...</option>
+      </select>
+      <button id="btn-po" onclick="selectPO()" disabled>[ Confirm Selection ]</button>
+    </div>
+
+    <div class="card" id="card-analyze">
+      <h3>⚡ Step 3: Analyze</h3>
+      <button id="btn-analyze" onclick="runAnalysis()" disabled>[ Run AI Analysis ]</button>
+    </div>
+
+    <div class="card" id="card-decide">
+      <h3>🏁 Step 4: Decide</h3>
+      <button id="btn-decide" onclick="finalDecision()" disabled>[ Generate Final Decision ]</button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL: LIVE OUTPUT -->
+  <div class="right-col">
+    
+    <div class="current-stage-banner" id="stage-banner">
+      👉 CURRENT STEP: INITIALIZE
+    </div>
+
+    <div class="card">
+      <h3>🧠 AI Status</h3>
+      <div class="status-box" id="ai-status">
+        [ System idle ]<br>
+        > Waiting for initialization protocol...
+      </div>
+    </div>
+
+    <div class="card" id="result-card">
+      <div id="ai-reasoning"></div>
+      <h3>📊 Result Summary</h3>
+      <div class="result-summary" id="result-summary">
+        <div style="color: #64748b; font-size: 13px; font-style: italic;">
+          ⏳ Waiting for final decision...
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+let state = null;
+let aiStatusLogs = [];
+
+// Core API engine
+async function requestEngine(endpoint, actionBody = null) {
+  const opts = { method: "POST", headers: {"Content-Type": "application/json"} };
+  if(actionBody) opts.body = JSON.stringify(actionBody);
+  const res = await fetch(endpoint, opts);
+  const data = await res.json();
+  if (!res.ok) {
+     state = { error: true, message: JSON.stringify(data.detail) || "Unknown API Error" };
+  } else {
+     state = data;
+  }
+  updateUI();
+}
+
+function updateLog(msg) {
+  aiStatusLogs.push(msg);
+  document.getElementById("ai-status").innerHTML = aiStatusLogs.join("<br>");
+}
+
+function updateTimelineItem(msg) {
+  const t = document.getElementById("timeline");
+  if(t.innerHTML.includes("Awaiting")) t.innerHTML = "";
+  t.innerHTML += `<div class="log-item success">${msg}</div>`;
+}
+
+// =======================
+// STEP 1: INITIALIZE
+// =======================
+async function initialize() {
+  const btn = document.getElementById("btn-start");
+  btn.innerText = "Processing...";
+  btn.disabled = true;
+
+  aiStatusLogs = [];
+  
+  const selectedTask = document.getElementById("taskDropdown").value;
+  updateLog(`> Session initializing [${selectedTask}]...`);
+  
+  await requestEngine("/reset", { task_id: selectedTask });
+  
+  updateTimelineItem("Session Started");
+  updateLog("> Invoice loaded and parsed successfully.");
+  
+  const dropdown = document.getElementById("poDropdown");
+  dropdown.innerHTML = "";
+  state.available_pos.forEach(po => {
+    dropdown.innerHTML += `<option value="${po.po_id}">[ ${po.po_id} ] - ${po.vendor_name} ($${po.total_amount})</option>`;
+  });
+  
+  dropdown.disabled = false;
+  document.getElementById("btn-po").disabled = false;
+  btn.innerText = "[ ✅ Started ]";
+  
+  activateCard("card-po");
+}
+
+// =======================
+// STEP 2: SELECT PO
+// =======================
+async function selectPO() {
+  const btn = document.getElementById("btn-po");
+  btn.innerText = "Confirming...";
+  btn.disabled = true;
+  document.getElementById("poDropdown").disabled = true;
+
+  const po = document.getElementById("poDropdown").value;
+  updateLog(`> Selected target PO: ${po}`);
+
+  await requestEngine("/step", { action: { action_type: "select_po", po_id: po } });
+  
+  updateTimelineItem(`PO Selected`);
+  btn.innerText = "[ ✅ PO Confirmed ]";
+
+  document.getElementById("btn-analyze").disabled = false;
+  activateCard("card-analyze");
+}
+
+// =======================
+// STEP 3: ANALYZE LOOP
+// =======================
+async function runAnalysis() {
+  const btn = document.getElementById("btn-analyze");
+  btn.innerText = "Analyzing invoice...";
+  btn.disabled = true;
+  
+  updateLog("> Comparing line items securely...");
+
+  const items = state.invoice.line_items || [];
+  const poItems = state.selected_po ? state.selected_po.line_items || [] : [];
+  const grnItems = state.goods_received_note ? state.goods_received_note.items_received || [] : [];
+
+  for (let i = 0; i < items.length; i++) {
+    const invItem = items[i];
+    const itemName = invItem.description || `Item ${i+1}`;
+    updateLog(`> Cross-referencing: ${itemName}...`);
+    
+    // Auto-Agent Logic for Payload Satisfaction
+    const getDesc = desc => desc.toLowerCase().trim();
+    const invDesc = getDesc(itemName);
+    
+    // Found in PO & Price Match
+    const pMatchObj = poItems.find(p => getDesc(p.description).includes(invDesc) || invDesc.includes(getDesc(p.description)));
+    const foundInPo = !!pMatchObj;
+    const priceMatch = foundInPo ? invItem.unit_price === pMatchObj.unit_price : false;
+
+    // Quantity match from GRN
+    let qtyMatch = false;
+    if (foundInPo && state.goods_received_note) {
+      const gMatchObj = grnItems.find(g => getDesc(g.description).includes(invDesc) || invDesc.includes(getDesc(g.description)));
+      if (gMatchObj) qtyMatch = (invItem.quantity === gMatchObj.quantity);
+    }
+    
+    await requestEngine("/step", { 
+      action: { 
+        action_type: "compare_item", 
+        invoice_item_index: i,
+        po_item_description: foundInPo ? pMatchObj.description : "None",
+        price_matches: priceMatch,
+        quantity_matches: qtyMatch,
+        found_in_po: foundInPo
+      } 
+    });
+    
+    // Tie log actively to real backend results
+    if (state.comparison_results && state.comparison_results.length > 0) {
+      const res = state.comparison_results[state.comparison_results.length - 1]; // get latest
+      const isPerfect = (res.agent_price_matches !== false && res.agent_qty_matches !== false && res.agent_found_in_po !== false);
+      if (isPerfect) updateLog(`  └── ✔ Clean Match`);
+      else updateLog(`  └── ⚠️ Discrepancy Found`);
+    } else {
+      updateLog(`  └── ✔ Item Logged (Payload Empty)`);
+    }
+  }
+
+  updateTimelineItem("Items Compared");
+  btn.innerText = "[ ✅ Analysis Complete ]";
+
+  document.getElementById("btn-decide").disabled = false;
+  activateCard("card-decide");
+}
+
+// =======================
+// CORE DECISION EVALUATOR
+// =======================
+function evaluateDecision(data) {
+  const invoice = data.invoice;
+  const po = data.selected_po;
+  const results = data.comparison_results || [];
+  
+  if (!po) return "reject";
+
+  const vendorMatch = invoice.vendor_name === po.vendor_name;
+  if (!vendorMatch) return "reject";
+
+  let hasMismatch = false;
+  for (let item of results) {
+    if (
+      !item.agent_price_matches ||
+      !item.agent_qty_matches ||
+      !item.agent_found_in_po
+    ) {
+      hasMismatch = true;
+      break;
+    }
+  }
+
+  return hasMismatch ? "reject" : "approve";
+}
+
+// =======================
+// STEP 4: FINAL DECISION
+// =======================
+async function finalDecision() {
+  const btn = document.getElementById("btn-decide");
+  btn.innerText = "Processing...";
+  btn.disabled = true;
+
+  updateLog("> Generating final evaluation...");
+
+  // Rely purely on dynamic evaluation of comparison logs
+  const autoDecision = evaluateDecision(state);
+
+  await requestEngine("/step", { 
+    action: { 
+      action_type: "final_decision",
+      decision: autoDecision
+    } 
+  });
+
+  updateTimelineItem("Decision Generated");
+  btn.innerText = "[ ✅ Decision Reached ]";
+  
+  activateCard(null); // Finish state
+  
+  // Render clean output and reasoning
+  renderReasoning(state);
+  renderFinalResult(state);
+  
+  // Auto-scroll
+  document.getElementById("result-card").scrollIntoView({ behavior: "smooth" });
+}
+
+function renderReasoning(data) {
+  const box = document.getElementById("ai-reasoning");
+  if (!box) return;
+
+  const results = data.comparison_results || [];
+  const invoice = data.invoice;
+  const po = data.selected_po;
+
+  let html = "<div style='background:#020617; padding:12px; border-radius:6px; margin-bottom: 24px; border: 1px solid #1e293b;'>";
+  html += "<div style='color:#3b82f6; font-weight:bold; margin-bottom: 12px; font-size: 15px;'>🔍 AI Reasoning Matrix</div>";
+
+  // Vendor check logic
+  const vendorMatch = invoice.vendor_name === po?.vendor_name;
+  html += `<div style="font-size:13px; color:#cbd5e1; margin-bottom: 12px;">`;
+  html += `<b>Vendor Validation:</b> ${vendorMatch ? '✔ Matched' : '<span style="color:#ef4444;font-weight:bold;">❌ Mismatch Detected</span>'}`;
+  html += `</div><hr style='border: none; border-top: 1px solid #1e293b; margin: 8px 0;'>`;
+
+  if (results.length > 0) {
+    results.forEach((item, i) => {
+      const desc = (data.invoice && data.invoice.line_items && data.invoice.line_items[i]) ? data.invoice.line_items[i].description : `Item ${i+1}`;
+      html += `
+        <div style="font-size:13px; color:#cbd5e1; margin-bottom: 10px;">
+          <span style="font-weight: 600; color: #f8fafc;">#${i + 1}: ${desc}</span><br>
+          <span style="display:inline-block; margin-left: 12px;">Price Match: ${item.agent_price_matches ? '✔' : '<span style="color:#f59e0b;font-weight:bold;">❌</span>'}</span><br>
+          <span style="display:inline-block; margin-left: 12px;">Quantity Match: ${item.agent_qty_matches ? '✔' : '<span style="color:#f59e0b;font-weight:bold;">❌</span>'}</span><br>
+          <span style="display:inline-block; margin-left: 12px;">Found in PO: ${item.agent_found_in_po ? '✔' : '<span style="color:#f59e0b;font-weight:bold;">❌</span>'}</span>
+        </div>
+      `;
+      if (i < results.length - 1) html += "<hr style='border: none; border-top: 1px dashed #1e293b; margin: 8px 0;'>";
+    });
+  } else {
+    html += "<div style='font-size:13px; color:#64748b; font-style:italic;'>No line-item comparisons logged securely.</div>";
+  }
+
+  // Issue summary block
+  const issues = results.filter(item => !item.agent_price_matches || !item.agent_qty_matches || !item.agent_found_in_po);
+  if (!vendorMatch || issues.length > 0) {
+    html += `<div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #1e293b;">`;
+    html += `<h4 style="margin: 0 0 8px 0; color: #f59e0b; font-size: 13px;">⚠️ Issues Detected:</h4>`;
+    
+    if (!vendorMatch) {
+      html += `<p style="margin: 4px 0; font-size: 13px; color: #ef4444;">❌ Vendor mismatch: Invoice (${invoice.vendor_name}) vs PO (${po?.vendor_name || 'N/A'})</p>`;
+    }
+    
+    issues.forEach((item, i) => {
+      // we need to find the correct index for description if we filtered it. Wait, the original array had it.
+      // finding index in original array
+      const origIndex = results.indexOf(item);
+      const desc = (data.invoice && data.invoice.line_items && data.invoice.line_items[origIndex]) ? data.invoice.line_items[origIndex].description : `Item ${origIndex+1}`;
+      html += `<p style="margin: 4px 0; font-size: 13px; color: #f59e0b;">❌ ${desc} failed line-item validation</p>`;
+    });
+    
+    html += `</div>`;
+  }
+
+  html += "</div>";
+  box.innerHTML = html;
+}
+
+function renderFinalResult(data) {
+  const resultDiv = document.getElementById("result-summary");
+
+  if (!data || data.error) {
+     resultDiv.innerHTML = `<span style="color:#ef4444">API Error: ${data.message || "Failed to process decision."}</span>`;
+     return;
+  }
+  
+  if (!data.is_done) {
+    resultDiv.innerHTML = "⏳ Waiting for final decision...";
+    return;
+  }
+
+  const invoice = data.invoice;
+  const po = data.selected_po;
+
+  const decisionOutcome = evaluateDecision(data);
+  const vendorMatch = invoice.vendor_name === po?.vendor_name;
+  const results = data.comparison_results || [];
+  const itemIssues = results.filter(item => !item.agent_price_matches || !item.agent_qty_matches || !item.agent_found_in_po);
+
+  let statusText = "";
+  let decisionText = "";
+
+  if (decisionOutcome === "approve") {
+    statusText = "<span style='color:#22c55e;'>✅ All items matched perfectly</span>";
+    decisionText = "✔ APPROVED";
+  } else {
+    decisionText = "❌ REVIEW REQUIRED";
+    if (!vendorMatch) {
+      statusText = "<span style='color:#ef4444;'>❌ Vendor mismatch detected</span>";
+    } else if (itemIssues.length > 0) {
+      statusText = "<span style='color:#f59e0b;'>⚠️ Quantity/Price item mismatch</span>";
+    } else {
+      statusText = "<span style='color:#f59e0b;'>⚠️ Evaluation flagged for manual review</span>";
+    }
+  }
+
+  const displayReward = data.info && data.info.normalized_score !== undefined ? data.info.normalized_score : Math.max(0, data.reward);
+
+  resultDiv.innerHTML = `
+    <div style="font-size: 14px; margin-bottom: 6px;"><b>Vendor:</b> ${invoice.vendor_name}</div>
+    <div style="font-size: 14px; margin-bottom: 6px;"><b>Invoice Total:</b> $${invoice.total_amount}</div>
+    <div style="font-size: 14px; margin-bottom: 12px;"><b>Selected PO:</b> ${po ? po.po_id : "N/A"}</div>
+    <hr style="border: none; border-top: 1px solid #1e293b; margin: 12px 0;">
+    <div style="font-size: 15px; margin-bottom: 6px;"><b>Status:</b> ${statusText}</div>
+    <div style="font-size: 15px; margin-bottom: 12px;"><b>Decision:</b> ${decisionText}</div>
+    <div style="font-size: 15px;"><b>Final Graded Score:</b> <span style="font-weight: 600; color: #3b82f6;">${displayReward} / 1.0</span></div>
+  `;
+}
+
+// =======================
+// UTILS
+// =======================
+function activateCard(cardId) {
+  document.querySelectorAll(".card").forEach(c => c.classList.remove("active-step"));
+  if (cardId) document.getElementById(cardId).classList.add("active-step");
+}
+
+function updateUI() {
+  if (!state) return;
+  
+  const banner = document.getElementById("stage-banner");
+  if (state.stage === "select_po") banner.innerText = "👉 CURRENT STEP: SELECT PO";
+  else if (state.stage === "compare_item" || state.stage === "flag_discrepancy") banner.innerText = "👉 CURRENT STEP: ANALYZE";
+  else if (state.stage === "final_decision" || state.is_done) banner.innerText = "👉 CURRENT STEP: FINISHED";
+}
+</script>
+
+</body>
+</html>

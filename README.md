@@ -29,13 +29,14 @@ Accounts-payable teams manually reconcile hundreds of vendor invoices every week
 
 ---
 
-## Tasks
+## Benchmark Tasks
 
-| Task ID | Difficulty | Correct Action |
-|---------|-----------|----------------|
-| `easy-exact-match` | Easy | `approve` — everything matches perfectly |
-| `medium-fuzzy-match` | Medium | `flag_discrepancy` — minor vendor name + small price delta |
-| `hard-discrepancy-detection` | Hard | `reject` — price overcharge + partial delivery + extra item |
+| Task ID | Difficulty | Description |
+|---------|-----------|-------------|
+| `easy-exact-match` | Easy | Perfect PO match; everything matches precisely. |
+| `medium-fuzzy-match` | Medium | Small discrepancies (fuzzy vendor name match, small price delta). |
+| `hard-discrepancy-detection` | Hard | Vendor mismatch + partial delivery missing items + overcharges. |
+| `ambiguous-split-invoice` | Hard | No PO reference; overlapping PO items requiring deduction. |
 
 ---
 
@@ -162,13 +163,18 @@ Interactive docs: **http://localhost:8000/docs** (Swagger UI)
 
 ---
 
-## Reward Scheme
+## Dense Reward Design (Step-wise Grader)
 
-| Outcome | Reward |
+Unlike generic end-of-episode pass/fail systems, this OpenEnv relies on native Reinforcement Learning incremental feedback throughout the pipeline loop:
+
+| Action Trajectory | Incremental Reward |
 |---------|--------|
-| Correct action **and** all discrepancies flagged | `+1.0` |
-| Correct action, incomplete discrepancy flags | `+0.5` |
-| Wrong action type | `-1.0` |
+| **Stage 1**: Selecting correct PO | `+0.20` |
+| **Stage 2**: Each correct item match | `+0.10` / item |
+| **Stage 3**: Valid discrepancy flag | `+0.10` / flag |
+| **Stage 3**: Incorrect / Spurious discrepancy | `-0.05` / flag |
+| **Stage 4**: Final decision correctness | `+0.30` |
+| **Cumulative Assessment** | **Normalized out of 1.0** |
 
 ---
 
