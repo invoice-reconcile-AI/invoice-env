@@ -153,6 +153,23 @@ https://dharshinik1-luminix-invoice-env.hf.space/docs
 
 Deployed using Docker on Hugging Face Spaces.
 
+---
+
+## 🖥️ Interactive UI
+
+The environment includes a lightweight dashboard to visualize the agent’s decision-making process in real time.
+
+It allows users to:
+
+* Initialize tasks (easy / medium / hard)
+* Execute step-by-step actions
+* View AI reasoning and validation results
+* Observe reward progression and final decision
+
+This transforms the environment from a backend API into an interpretable system for debugging and evaluation.
+
+---
+
 ### Run locally:
 
 ```bash
