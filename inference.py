@@ -104,19 +104,19 @@ def log_start(task: str, model: str) -> None:
 
 
 def log_step(step: int, action: Dict[str, Any], reward: float,
-             done: bool, info: Any) -> None:
+             done: bool, error: Optional[str] = None) -> None:
     action_field = json.dumps(action, ensure_ascii=True, separators=(",", ":"))
-    info_field   = json.dumps(info,   ensure_ascii=True, separators=(",", ":"))
+    error_field  = error if error else "null"
     print(
         f"[STEP] step={step} action={action_field} "
-        f"reward={reward:.4f} done={_bool_str(done)} info={info_field}",
+        f"reward={reward:.2f} done={_bool_str(done)} error={error_field}",
         flush=True,
     )
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
-    rewards_csv = ",".join(f"{r:.4f}" for r in rewards)
-    print(f"[END] success={_bool_str(success)} steps={steps} rewards={rewards_csv}",
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_csv = ",".join(f"{r:.2f}" for r in rewards)
+    print(f"[END] success={_bool_str(success)} steps={steps} score={score:.2f} rewards={rewards_csv}",
           flush=True)
 
 
@@ -582,7 +582,7 @@ def run_task(task_id: str) -> Dict[str, Any]:
         done   = bool(obs.get("is_done", False))
         rewards.append(reward)
         log_step(step=step_count, action=action, reward=reward, done=done,
-                 info=obs.get("info", {}))
+                 error=None)
         _dbg(f"  stage={obs.get('stage')}  cumulative={obs.get('cumulative_reward')}"
              f"  feedback: {obs.get('feedback','')[:80]}")
 
@@ -600,7 +600,7 @@ def run_task(task_id: str) -> Dict[str, Any]:
             done   = bool(obs.get("is_done", False))
             rewards.append(reward)
             log_step(step=step_count, action=action, reward=reward, done=done,
-                     info=obs.get("info", {}))
+                     error=None)
             _dbg(f"  compare[{idx}]  stage={obs.get('stage')}  "
                  f"feedback: {obs.get('feedback','')[:80]}")
             compared_indices.add(idx)
@@ -617,7 +617,7 @@ def run_task(task_id: str) -> Dict[str, Any]:
                 done   = bool(obs.get("is_done", False))
                 rewards.append(reward)
                 log_step(step=step_count, action=flag_action, reward=reward, done=done,
-                         info=obs.get("info", {}))
+                         error=None)
                 _dbg(f"  flagged {flag_action['discrepancy_type']}"
                      f"  feedback: {obs.get('feedback','')[:80]}")
         else:
@@ -631,7 +631,7 @@ def run_task(task_id: str) -> Dict[str, Any]:
         done   = bool(obs.get("is_done", True))
         rewards.append(reward)
         log_step(step=step_count, action=action, reward=reward, done=done,
-                 info=obs.get("info", {}))
+                 error=None)
         _dbg(f"  final stage={obs.get('stage')}  done={done}  "
              f"cumulative={obs.get('cumulative_reward')}")
 
@@ -653,7 +653,7 @@ def run_task(task_id: str) -> Dict[str, Any]:
         import traceback
         traceback.print_exc(file=sys.stderr)
 
-    log_end(success=success, steps=step_count, rewards=rewards)
+    log_end(success=success, steps=step_count, score=final_info.get("cumulative_reward", 0.0), rewards=rewards)
     return final_info
 
 
