@@ -153,6 +153,13 @@ https://dharshinik1-luminix-invoice-env.hf.space/docs
 
 Deployed using Docker on Hugging Face Spaces.
 
+### Run locally:
+
+```bash
+docker build .
+docker run -p 8000:8000 <image>
+```
+
 ---
 
 ## 🖥️ Interactive UI
@@ -169,17 +176,6 @@ It allows users to:
 This transforms the environment from a backend API into an interpretable system for debugging and evaluation.
 
 ---
-
-### Run locally:
-
-```bash
-docker build .
-docker run -p 8000:8000 <image>
-```
-
----
-
-## 🧪 Baseline Inference
 
 ### 🧪 Baseline Inference
 
