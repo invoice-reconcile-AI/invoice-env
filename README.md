@@ -164,10 +164,19 @@ docker run -p 8000:8000 <image>
 
 ## 🧪 Baseline Inference
 
-Run:
+### 🧪 Baseline Inference
+
+To run the baseline agent:
 
 ```bash
+pip install -r requirements.txt
 python inference.py
+```
+
+Make sure the environment server is running:
+
+```bash
+uvicorn server.main:app --reload
 ```
 
 Output format:
