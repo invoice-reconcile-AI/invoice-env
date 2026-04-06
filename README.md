@@ -1,3 +1,13 @@
+---
+title: Luminix Invoice Env
+emoji: 💸
+colorFrom: blue
+colorTo: red
+sdk: docker
+pinned: false
+app_port: 7860
+---
+
 # 🧠 Invoice Reconciliation OpenEnv Environment
 
 > **Meta Hackathon Submission** — A production-grade OpenEnv environment simulating invoice-to-payment reconciliation used in real-world finance systems.
