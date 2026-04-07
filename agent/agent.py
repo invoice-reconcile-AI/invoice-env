@@ -33,10 +33,21 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 
-BASE_URL    = os.getenv("ENV_BASE_URL",  "http://127.0.0.1:8000")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "together")   # "together" | "groq" | "openai"
-LLM_MODEL   = os.getenv("LLM_MODEL",    "meta-llama/Llama-3.3-70B-Instruct-Turbo")
-LLM_API_KEY = os.getenv("LLM_API_KEY",  "")
+# Environment server (FastAPI) – renamed to avoid collision with LLM proxy
+ENV_SERVER_URL = os.getenv("ENV_BASE_URL", "http://127.0.0.1:8000")
+
+# --- MANDATORY HACKATHON PROXY (PHASE 2) ---
+# The validator injects these EXACT names for the LiteLLM proxy:
+PROXY_BASE_URL = os.getenv("API_BASE_URL") or os.getenv("AM_BASE_URL")
+PROXY_KEY      = os.getenv("API_KEY")      or os.getenv("AM_KEY")
+
+LLM_PROVIDER   = os.getenv("LLM_PROVIDER", "together")
+# Force OpenAI provider if proxy is present (since it mimics OpenAI API)
+if PROXY_BASE_URL:
+    LLM_PROVIDER = "openai"
+
+LLM_MODEL      = os.getenv("LLM_MODEL",    "meta-llama/Llama-3.3-70B-Instruct-Turbo")
+LLM_API_KEY    = PROXY_KEY or os.getenv("LLM_API_KEY",  "")
 
 VALID_ACTIONS = ["approve", "reject", "flag_discrepancy",
                  "request_credit_note", "escalate", "match_to_po"]
@@ -51,7 +62,8 @@ VALID_DISCREPANCIES = [
 # ---------------------------------------------------------------------------
 
 def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    resp = requests.post(f"{BASE_URL}{path}", json=payload, timeout=30)
+    # Use ENV_SERVER_URL for the task/environment server
+    resp = requests.post(f"{ENV_SERVER_URL}{path}", json=payload, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
@@ -222,7 +234,11 @@ def _call_groq(messages: list[dict]) -> dict[str, Any]:
 
 def _call_openai(messages: list[dict]) -> dict[str, Any]:
     from openai import OpenAI
-    client = OpenAI(api_key=LLM_API_KEY or None)
+    # Use proxy base_url and key if provided by hackathon validator
+    client = OpenAI(
+        api_key=LLM_API_KEY or None,
+        base_url=PROXY_BASE_URL or None
+    )
     resp = client.chat.completions.create(
         model=LLM_MODEL, messages=messages, temperature=0.0, max_tokens=512,
         response_format={"type": "json_object"},
