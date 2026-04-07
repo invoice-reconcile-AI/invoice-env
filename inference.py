@@ -120,7 +120,7 @@ def log_step(step: int, action: Dict[str, Any], reward: float,
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_csv = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={_bool_str(success)} steps={steps} score={score:.2f} rewards={rewards_csv}",
+    print(f"[END] success={_bool_str(success)} steps={steps} rewards={rewards_csv}",
           flush=True)
 
 
