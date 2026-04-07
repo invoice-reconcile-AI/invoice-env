@@ -166,8 +166,8 @@ Deployed using Docker on Hugging Face Spaces.
 ### Run locally:
 
 ```bash
-docker build .
-docker run -p 8000:8000 <image>
+docker build -t invoice-env .
+docker run -p 7860:7860 invoice-env
 ```
 
 ---
