@@ -54,14 +54,18 @@ except ImportError:
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Support hackathon-standard names (API_BASE_URL, MODEL_NAME, HF_TOKEN)
-# with fallback to legacy names (ENV_BASE_URL, LLM_MODEL, LLM_API_KEY)
-ENV_BASE_URL = (
-    os.getenv("API_BASE_URL")
-    or os.getenv("ENV_BASE_URL")
+# Environment (FastAPI) server URL — where /reset, /step, /state live
+ENV_SERVER_URL = (
+    os.getenv("ENV_BASE_URL")
     or "http://localhost:8000"
 )
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "together")
+
+# --- MANDATORY HACKATHON VARIABLES (PHASE 2) ---
+# Judges inject API_BASE_URL (LiteLLM proxy) + HF_TOKEN (key) + MODEL_NAME
+LLM_BASE_URL = (
+    os.getenv("API_BASE_URL")
+    or "https://router.huggingface.co/v1"
+)
 LLM_MODEL = (
     os.getenv("MODEL_NAME")
     or os.getenv("LLM_MODEL")
@@ -129,7 +133,8 @@ def _dbg(msg: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    resp = requests.post(f"{ENV_BASE_URL}{path}", json=payload, timeout=30)
+    # Use ENV_SERVER_URL for the task/environment server
+    resp = requests.post(f"{ENV_SERVER_URL}{path}", json=payload, timeout=30)
     if not resp.ok:
         _dbg(f"HTTP {resp.status_code} on {path}: {resp.text[:300]}")
     resp.raise_for_status()
@@ -167,78 +172,33 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return {}
 
 # ---------------------------------------------------------------------------
-# LLM call
+# LLM call — MANDATORY: use OpenAI client routed through API_BASE_URL proxy
 # ---------------------------------------------------------------------------
 
-def _call_together(messages: List[Dict[str, str]]) -> Dict[str, Any]:
-    from together import Together
-    client = Together(api_key=LLM_API_KEY or None)
-    resp = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=messages,
-        temperature=0.0,
-        max_tokens=600,
-    )
-    return _extract_json(resp.choices[0].message.content or "")
-
-
-def _call_groq(messages: List[Dict[str, str]]) -> Dict[str, Any]:
-    from groq import Groq
-    client = Groq(api_key=LLM_API_KEY or None)
-    resp = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=messages,
-        temperature=0.0,
-        max_tokens=600,
-    )
-    return _extract_json(resp.choices[0].message.content or "")
-
-
-def _call_openai(messages: List[Dict[str, str]]) -> Dict[str, Any]:
-    from openai import OpenAI
-    client = OpenAI(api_key=LLM_API_KEY or None)
-    resp = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=messages,
-        temperature=0.0,
-        max_tokens=600,
-        response_format={"type": "json_object"},
-    )
-    return _extract_json(resp.choices[0].message.content or "")
-
+from openai import OpenAI as _OpenAI
 
 def call_llm(messages: List[Dict[str, str]]) -> Dict[str, Any]:
-    """Call the configured LLM provider with automatic fallback chain.
+    """Call LLM via OpenAI-compatible client using API_BASE_URL + HF_TOKEN.
 
-    Priority: primary provider → other available providers → empty dict.
-    NEVER raises — inference always completes even if all APIs fail.
+    Hackathon requirement: ALL LLM calls must use the OpenAI client with
+    base_url=API_BASE_URL and api_key=HF_TOKEN so they route through
+    the judges' LiteLLM proxy (Phase 2 validation).
     """
-    provider = LLM_PROVIDER.lower()
-
-    # Build ordered list: primary first, then fallbacks
-    _CALLERS = {
-        "groq":     _call_groq,
-        "together": _call_together,
-        "openai":   _call_openai,
-    }
-    ordered = [provider] + [p for p in _CALLERS if p != provider]
-
-    for attempt_provider in ordered:
-        caller = _CALLERS.get(attempt_provider)
-        if caller is None:
-            continue
-        try:
-            result = caller(messages)
-            if attempt_provider != provider:
-                _dbg(f"[fallback] used '{attempt_provider}' after primary '{provider}' failed")
-            return result
-        except Exception as exc:
-            _dbg(f"[warn] Provider '{attempt_provider}' failed: {exc}")
-            continue
-
-    # All providers failed — return empty dict, stage handlers use safe defaults
-    _dbg("[warn] ALL LLM providers failed — returning empty dict, using fallback action")
-    return {}
+    try:
+        client = _OpenAI(
+            base_url=LLM_BASE_URL,
+            api_key=LLM_API_KEY or "placeholder",
+        )
+        resp = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+            temperature=0.0,
+            max_tokens=600,
+        )
+        return _extract_json(resp.choices[0].message.content or "")
+    except Exception as exc:
+        _dbg(f"[warn] LLM call failed: {exc}")
+        return {}
 
 # ---------------------------------------------------------------------------
 # Stage-specific prompt builders & action constructors
@@ -416,28 +376,24 @@ def _make_flag_discrepancy_actions(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
         {"role": "user",   "content": _build_flag_discrepancy_prompt(obs)},
     ]
 
-    # Use resilient call_llm() — has full 3-provider fallback, never raises
-    # It returns a dict, but flag stage needs raw text for array parsing.
-    # So we call the raw providers with try/except via our own safe wrapper.
+    # Use OpenAI client (routed through API_BASE_URL proxy) for raw text output
     raw_text = ""
     try:
-        _CALLERS_RAW = {
-            "groq":     lambda m: __import__("groq").Groq(api_key=LLM_API_KEY or None).chat.completions.create(model=LLM_MODEL, messages=m, temperature=0.0, max_tokens=800).choices[0].message.content or "",
-            "together": lambda m: __import__("together").Together(api_key=LLM_API_KEY or None).chat.completions.create(model=LLM_MODEL, messages=m, temperature=0.0, max_tokens=800).choices[0].message.content or "",
-            "openai":   lambda m: __import__("openai").OpenAI(api_key=LLM_API_KEY or None).chat.completions.create(model=LLM_MODEL, messages=m, temperature=0.0, max_tokens=800).choices[0].message.content or "",
-        }
-        provider = LLM_PROVIDER.lower()
-        ordered = [provider] + [p for p in _CALLERS_RAW if p != provider]
-        for attempt in ordered:
-            try:
-                raw_text = _CALLERS_RAW[attempt](messages)
-                if attempt != provider:
-                    _dbg(f"[fallback] flag_discrepancy used '{attempt}'")
-                break
-            except Exception as exc:
-                _dbg(f"[warn] flag_discrepancy provider '{attempt}' failed: {exc}")
+        client = _OpenAI(
+            base_url=LLM_BASE_URL,
+            api_key=LLM_API_KEY or "placeholder",
+        )
+        resp = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+            temperature=0.0,
+            max_tokens=800,
+        )
+        raw_text = resp.choices[0].message.content or ""
+        if raw_text:
+            _dbg("flag_discrepancy: LLM call succeeded via OpenAI proxy")
     except Exception as exc:
-        _dbg(f"[warn] flag_discrepancy all providers failed: {exc}")
+        _dbg(f"[warn] flag_discrepancy LLM call failed: {exc}")
         return []  # safe fallback — no flags, episode continues to Stage 4
 
     raw_text = raw_text.strip()
@@ -643,7 +599,7 @@ def run_task(task_id: str) -> Dict[str, Any]:
 
     except requests.exceptions.ConnectionError:
         print(
-            f"[ERROR] Cannot reach env server at {ENV_BASE_URL}. "
+            f"[ERROR] Cannot reach env server at {ENV_SERVER_URL}. "
             "Is 'uvicorn server.main:app' running?",
             file=sys.stderr, flush=True,
         )
@@ -706,9 +662,8 @@ def main() -> None:
     parser.add_argument("--model", default=None, help="Override LLM_MODEL")
     args = parser.parse_args()
 
-    global ENV_BASE_URL, LLM_PROVIDER, LLM_MODEL
-    if args.base_url: ENV_BASE_URL = args.base_url
-    if args.provider: LLM_PROVIDER = args.provider
+    global ENV_SERVER_URL, LLM_BASE_URL, LLM_MODEL
+    if args.base_url: ENV_SERVER_URL = args.base_url
     if args.model:    LLM_MODEL    = args.model
 
     if not LLM_API_KEY:
