@@ -72,9 +72,10 @@ LLM_MODEL = (
     or "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 )
 LLM_API_KEY = (
-    os.getenv("HF_TOKEN")
-    or os.getenv("LLM_API_KEY")
-    or ""
+    os.getenv("API_KEY")        # Phase 2: judges inject this exact variable name
+    or os.getenv("HF_TOKEN")    # local testing fallback
+    or os.getenv("LLM_API_KEY") # legacy fallback
+    or "placeholder"
 )
 
 BENCHMARK         = "InvoiceReconciliationBenchmark-v1"
