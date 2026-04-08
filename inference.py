@@ -602,7 +602,6 @@ def run_task(task_id: str) -> Dict[str, Any]:
     except requests.exceptions.ConnectionError as conn_err:
         _dbg(f"[ERROR] Cannot reach env server at {ENV_SERVER_URL}: {conn_err}")
         _dbg("Set ENV_BASE_URL to the correct server URL.")
-        # Still make one LLM call so the proxy key is registered
         try:
             call_llm([{"role": "user", "content": "ping"}])
         except Exception:
