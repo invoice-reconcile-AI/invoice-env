@@ -2,31 +2,22 @@
 
 Connects to the running FastAPI env server and runs a full 4-stage episode per task:
 
-  Stage 1 – select_po       : LLM picks the matching PO candidate.
-  Stage 2 – compare_items   : LLM evaluates each invoice line item vs PO & GRN.
+  Stage 1 – select_po : LLM picks the matching PO candidate.
+  Stage 2 – compare_items : LLM evaluates each invoice line item vs PO & GRN.
   Stage 3 – flag_discrepancies: LLM flags each discrepancy it found.
-  Stage 4 – final_decision  : LLM issues the definitive approve/flag/reject.
+  Stage 4 – final_decision : LLM issues the definitive approve/flag/reject.
 
 STDOUT FORMAT (strict – only these three line types):
     [START] task=<id> env=<benchmark> model=<model>
-    [STEP]  step=<n> action=<json> reward=<r> done=<bool> info=<json>
-    [END]   success=<bool> steps=<n> rewards=<csv>
+    [STEP] step=<n> action=<json> reward=<r> done=<bool> error=<msg|null>
+    [END] success=<bool> steps=<n> score=<s> rewards=<csv>
 
 All debug output goes to stderr.
 
-Required environment variables (see .env):
-    API_BASE_URL  – FastAPI server base URL  (hackathon standard)
-    ENV_BASE_URL  – FastAPI server base URL  (legacy alias, fallback)
-    MODEL_NAME    – model identifier          (hackathon standard)
-    MODEL_NAME     – model identifier          (legacy alias, fallback)
-    HF_TOKEN      – API key / HuggingFace token (hackathon standard)
-    API_KEY   – API key                  (legacy alias, fallback)
-    LLM_PROVIDER  – "together" | "groq" | "openai"  (default: together)
-
-Usage:
-    python inference.py                          # run all three tasks
-    python inference.py --task easy-exact-match  # run one task
-    python inference.py --task all               # explicit all
+Required environment variables (injected by judges):
+    API_BASE_URL – The API endpoint for the LLM.
+    MODEL_NAME – The model identifier to use for inference.
+    HF_TOKEN – Your Hugging Face / API key.
 """
 
 from __future__ import annotations
@@ -40,6 +31,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
+from openai import OpenAI as _OpenAI
 
 def _dbg(msg: str) -> None:
     """Write debug line to stderr only – never stdout."""
@@ -48,40 +40,31 @@ def _dbg(msg: str) -> None:
 # ---------------------------------------------------------------------------
 # Load .env automatically (Skip if already in a validation environment)
 # ---------------------------------------------------------------------------
-if not os.getenv("API_BASE_URL") and not os.getenv("API_KEY"):
+if not os.getenv("API_BASE_URL") and not os.getenv("HF_TOKEN"):
     try:
         from dotenv import load_dotenv
         load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+        _dbg(f"Local testing: Loading variables from {Path(__file__).resolve().parent / '.env'}")
     except ImportError:
         pass
 else:
     _dbg("Validation environment detected (API_BASE_URL set). Skipping .env load.")
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration - MANDATORY: No fallbacks for judge-injected vars
 # ---------------------------------------------------------------------------
 
 # Environment (FastAPI) server URL — where /reset, /step, /state live
-# Default port MUST match Dockerfile EXPOSE port (7860)
-ENV_SERVER_URL = (
-    os.getenv("ENV_BASE_URL")
-    or "http://localhost:7860"
-)
+ENV_SERVER_URL = os.getenv("ENV_BASE_URL") or "http://localhost:7860"
 
 # --- MANDATORY HACKATHON VARIABLES (PHASE 2) ---
-# Judges inject API_BASE_URL (LiteLLM proxy) + API_KEY + MODEL_NAME
-# CRITICAL FIX: Directly use os.environ to ensure no bypass of the proxy.
-try:
-    # Set defaults only if not in validation (local testing)
-    API_BASE_URL = os.environ.get("API_BASE_URL") or "https://router.huggingface.co/v1"
-    API_KEY      = os.environ.get("API_KEY")      or os.environ.get("HF_TOKEN") or "placeholder"
-    MODEL_NAME   = os.environ.get("MODEL_NAME")   or "meta-llama/Llama-3.3-70B-Instruct-Turbo"
-except KeyError:
-    # In production, we expect these to exist.
-    pass
+# Judges inject API_BASE_URL + MODEL_NAME + HF_TOKEN. Must crash if missing.
+API_BASE_URL = os.environ["API_BASE_URL"] # KeyError if missing = FAIL fast
+MODEL_NAME = os.environ["MODEL_NAME"]     # KeyError if missing = FAIL fast
+HF_TOKEN = os.environ["HF_TOKEN"]         # KeyError if missing = FAIL fast
 
-BENCHMARK         = "InvoiceReconciliationBenchmark-v1"
-SUCCESS_THRESHOLD = 0.6   # cumulative reward >= this → success
+BENCHMARK = "InvoiceReconciliationBenchmark-v1"
+SUCCESS_THRESHOLD = 0.6
 
 ALL_TASKS: List[str] = [
     "easy-exact-match",
@@ -99,28 +82,22 @@ VALID_DISCREPANCY_TYPES = {
 VALID_FINAL_DECISIONS = {"approve", "flag_discrepancy", "reject"}
 
 # ---------------------------------------------------------------------------
-# Logging helpers  (ONLY these functions write to stdout)
+# Logging helpers (ONLY these functions write to stdout)
 # ---------------------------------------------------------------------------
-
-def _bool_str(v: bool) -> str:
-    return "true" if v else "false"
-
 
 def log_start(task: str, model: str) -> None:
     print(f"[START] task={task} env={BENCHMARK} model={model}", flush=True)
 
-
 def log_step(step: int, action: Dict[str, Any], reward: float,
              done: bool, error: Optional[str] = None) -> None:
     action_field = json.dumps(action, ensure_ascii=True, separators=(",", ":"))
-    error_val    = error if error else "null"
-    done_val     = str(done).lower()
+    error_val = "null" if error is None else json.dumps(error, ensure_ascii=True)
+    done_val = str(done).lower()
     print(
         f"[STEP] step={step} action={action_field} "
         f"reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
     )
-
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
@@ -131,20 +108,16 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 # ---------------------------------------------------------------------------
 
 def _post(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    # Use ENV_SERVER_URL for the task/environment server
     resp = requests.post(f"{ENV_SERVER_URL}{path}", json=payload, timeout=30)
     if not resp.ok:
         _dbg(f"HTTP {resp.status_code} on {path}: {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()
 
-
 def env_reset(task_id: str) -> Dict[str, Any]:
     return _post("/reset", {"task_id": task_id})
 
-
 def env_step(action: Dict[str, Any]) -> Dict[str, Any]:
-    """Submit action wrapped in the expected {'action': {...}} envelope."""
     return _post("/step", {"action": action})
 
 # ---------------------------------------------------------------------------
@@ -156,7 +129,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
     if text.startswith("```"):
         lines = text.splitlines()
         inner = lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:]
-        text  = "\n".join(inner).strip()
+        text = "\n".join(inner).strip()
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -173,48 +146,24 @@ def _extract_json(text: str) -> Dict[str, Any]:
 # LLM call — MANDATORY: use OpenAI client routed through API_BASE_URL proxy
 # ---------------------------------------------------------------------------
 
-from openai import OpenAI as _OpenAI
-
 def _warm_up_proxy() -> None:
-    """Make a guaranteed HTTP request to the LLM proxy so the key is registered.
-
-    The Phase 2 validator checks if last_active was updated on the proxy.
-    This ensures at least one request reaches the proxy, even if all
-    subsequent calls fail for other reasons.
-    """
-    _dbg(f"Warming up proxy at {API_BASE_URL} with key {API_KEY[:8]}...")
+    """Make a guaranteed HTTP request to the LLM proxy so the key is registered."""
+    _dbg(f"Warming up proxy at {API_BASE_URL} with key {HF_TOKEN[:8]}...")
     try:
-        # Use OpenAI client exclusively for Phase 2 compliance
-        base_url = os.getenv("API_BASE_URL") or API_BASE_URL
-        api_key  = os.getenv("API_KEY")      or API_KEY
-        
-        client = _OpenAI(base_url=base_url, api_key=api_key or "placeholder")
+        client = _OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
         resp = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": "hello"}],
             max_tokens=5,
         )
-        _dbg(f"Proxy warm-up response: {resp.status_code if hasattr(resp, 'status_code') else 'OK'}")
+        _dbg(f"Proxy warm-up response: {resp.choices[0].finish_reason if resp.choices else 'OK'}")
     except Exception as exc:
         _dbg(f"Proxy warm-up failed (non-fatal): {exc}")
 
-
 def call_llm(messages: List[Dict[str, str]]) -> Dict[str, Any]:
-    """Call LLM via OpenAI-compatible client using API_BASE_URL + API_KEY.
-
-    Hackathon requirement: ALL LLM calls must use the OpenAI client with
-    base_url=API_BASE_URL and api_key=API_KEY so they route through
-    the judges' LiteLLM proxy.
-    """
+    """Call LLM via OpenAI-compatible client using API_BASE_URL + HF_TOKEN."""
     try:
-        # STRICT Compliance: Force use of environment variables directly
-        # If they aren't provided by the judge, we fail.
-        client = _OpenAI(
-            base_url=API_BASE_URL,
-            api_key=API_KEY,
-        )
-        _dbg(f"Using LLM Base URL: {API_BASE_URL}") # Verification
-
+        client = _OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
         resp = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
@@ -230,14 +179,12 @@ def call_llm(messages: List[Dict[str, str]]) -> Dict[str, Any]:
 # Stage-specific prompt builders & action constructors
 # ---------------------------------------------------------------------------
 
-# ── Stage 1: Select PO ───────────────────────────────────────────────────
-
 _SELECT_PO_SYSTEM = """
 You are an expert Accounts-Payable reconciliation agent.
 
 You will receive a JSON object with:
-  - invoice       : the invoice to be reconciled
-  - available_pos : a list of Purchase Order candidates
+    - invoice : the invoice to be reconciled
+    - available_pos : a list of Purchase Order candidates
 
 Your task is to select the PO that best matches the invoice (by vendor name,
 line items, and po_reference if available).
@@ -245,33 +192,26 @@ line items, and po_reference if available).
 Respond with ONLY valid JSON — no markdown, no prose:
 {
   "action_type": "select_po",
-  "po_id":       "<exact po_id string from available_pos>",
-  "reasoning":   "<brief reason>"
+  "po_id": "<exact po_id string from available_pos>",
+  "reasoning": "<brief reason>"
 }
 """.strip()
 
-
 def _build_select_po_prompt(obs: Dict[str, Any]) -> str:
     return json.dumps({
-        "invoice":       obs.get("invoice"),
+        "invoice": obs.get("invoice"),
         "available_pos": obs.get("available_pos", []),
-        "feedback":      obs.get("feedback", ""),
+        "feedback": obs.get("feedback", ""),
     }, default=str, indent=2)
 
-
 def _make_select_po_action(obs: Dict[str, Any]) -> Dict[str, Any]:
-    try:
-        raw = call_llm([
-            {"role": "system", "content": _SELECT_PO_SYSTEM},
-            {"role": "user",   "content": _build_select_po_prompt(obs)},
-        ])
-    except Exception as e:
-        _dbg(f"select_po LLM failed ({e}), using fallback")
-        raw = {}
+    raw = call_llm([
+        {"role": "system", "content": _SELECT_PO_SYSTEM},
+        {"role": "user", "content": _build_select_po_prompt(obs)},
+    ])
     _dbg(f"select_po LLM raw: {raw}")
 
     po_id = str(raw.get("po_id") or "").strip()
-    # Fallback: pick the PO whose vendor most closely matches invoice vendor
     if not po_id:
         inv_vendor = (obs.get("invoice") or {}).get("vendor_name", "").lower()
         for po in (obs.get("available_pos") or []):
@@ -283,39 +223,35 @@ def _make_select_po_action(obs: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "action_type": "select_po",
-        "po_id":       po_id,
-        "reasoning":   str(raw.get("reasoning") or "")[:300],
+        "po_id": po_id,
+        "reasoning": str(raw.get("reasoning") or "")[:300],
     }
-
-
-# ── Stage 2: Compare Items ────────────────────────────────────────────────
 
 _COMPARE_ITEM_SYSTEM = """
 You are an expert Accounts-Payable reconciliation agent.
 
 You receive:
-  - invoice_item    : one invoice line item (description, quantity, unit_price)
-  - po_line_items   : all line items from the selected Purchase Order
-  - grn_items       : all items in the Goods Received Note (quantities actually received)
+    - invoice_item : one invoice line item (description, quantity, unit_price)
+    - po_line_items : all line items from the selected Purchase Order
+    - grn_items : all items in the Goods Received Note (quantities actually received)
 
 Determine for this invoice item:
-  1. found_in_po      – does it have a matching entry in po_line_items? (bool)
-  2. price_matches    – does the invoice unit_price equal the PO unit_price? (bool, true if not found in PO)
-  3. quantity_matches – does the invoice quantity equal the GRN quantity_received? (bool, true if not in GRN)
+    1. found_in_po – does it have a matching entry in po_line_items? (bool)
+    2. price_matches – does the invoice unit_price equal the PO unit_price? (bool, true if not found in PO)
+    3. quantity_matches – does the invoice quantity equal the GRN quantity_received? (bool, true if not in GRN)
 
 Matching is fuzzy: look for shared words in description.
 
 Respond with ONLY valid JSON — no markdown:
 {
-  "action_type":          "compare_item",
-  "invoice_item_index":   <integer>,
-  "po_item_description":  "<best PO item description or empty string>",
-  "found_in_po":          <true|false>,
-  "price_matches":        <true|false>,
-  "quantity_matches":     <true|false>
+  "action_type": "compare_item",
+  "invoice_item_index": <integer>,
+  "po_item_description": "<best PO item description or empty string>",
+  "found_in_po": <true|false>,
+  "price_matches": <true|false>,
+  "quantity_matches": <true|false>
 }
 """.strip()
-
 
 def _build_compare_item_prompt(
     item_index: int,
@@ -325,11 +261,10 @@ def _build_compare_item_prompt(
 ) -> str:
     return json.dumps({
         "invoice_item_index": item_index,
-        "invoice_item":       inv_item,
-        "po_line_items":      po_items,
-        "grn_items":          grn_items,
+        "invoice_item": inv_item,
+        "po_line_items": po_items,
+        "grn_items": grn_items,
     }, default=str, indent=2)
-
 
 def _make_compare_item_action(
     item_index: int,
@@ -337,32 +272,25 @@ def _make_compare_item_action(
     obs: Dict[str, Any],
 ) -> Dict[str, Any]:
     selected_po = obs.get("selected_po") or {}
-    po_items    = selected_po.get("line_items", [])
-    grn_items   = (obs.get("goods_received_note") or {}).get("items_received", [])
+    po_items = selected_po.get("line_items", [])
+    grn_items = (obs.get("goods_received_note") or {}).get("items_received", [])
 
-    try:
-        raw = call_llm([
-            {"role": "system", "content": _COMPARE_ITEM_SYSTEM},
-            {"role": "user",   "content": _build_compare_item_prompt(
-                item_index, inv_item, po_items, grn_items
-            )},
-        ])
-    except Exception as e:
-        _dbg(f"compare_item[{item_index}] LLM failed ({e}), using fallback")
-        raw = {}
+    raw = call_llm([
+        {"role": "system", "content": _COMPARE_ITEM_SYSTEM},
+        {"role": "user", "content": _build_compare_item_prompt(
+            item_index, inv_item, po_items, grn_items
+        )},
+    ])
     _dbg(f"compare_item[{item_index}] LLM raw: {raw}")
 
     return {
-        "action_type":          "compare_item",
-        "invoice_item_index":   item_index,
-        "po_item_description":  str(raw.get("po_item_description") or ""),
-        "found_in_po":          bool(raw.get("found_in_po", True)),
-        "price_matches":        bool(raw.get("price_matches", True)),
-        "quantity_matches":     bool(raw.get("quantity_matches", True)),
+        "action_type": "compare_item",
+        "invoice_item_index": item_index,
+        "po_item_description": str(raw.get("po_item_description") or ""),
+        "found_in_po": bool(raw.get("found_in_po", True)),
+        "price_matches": bool(raw.get("price_matches", True)),
+        "quantity_matches": bool(raw.get("quantity_matches", True)),
     }
-
-
-# ── Stage 3: Flag Discrepancies ───────────────────────────────────────────
 
 _FLAG_DISCREPANCY_SYSTEM = """
 You are an expert Accounts-Payable reconciliation agent.
@@ -371,9 +299,9 @@ Based on the comparison results provided, identify ALL discrepancies and list th
 
 For EACH discrepancy you must output ONE JSON object (call this tool once per discrepancy):
 {
-  "action_type":      "flag_discrepancy",
+  "action_type": "flag_discrepancy",
   "discrepancy_type": "<one of: price_mismatch | quantity_mismatch | vendor_name_mismatch | po_not_found | duplicate_invoice | partial_delivery | extra_charge | missing_line_item>",
-  "details":          "<concise description with specific values>"
+  "details": "<concise description with specific values>"
 }
 
 If there are MULTIPLE discrepancies, output a JSON array of such objects:
@@ -385,30 +313,24 @@ If there are MULTIPLE discrepancies, output a JSON array of such objects:
 If there are NO discrepancies, output an empty array: []
 """.strip()
 
-
 def _build_flag_discrepancy_prompt(obs: Dict[str, Any]) -> str:
     return json.dumps({
-        "invoice":            obs.get("invoice"),
-        "selected_po":        obs.get("selected_po"),
+        "invoice": obs.get("invoice"),
+        "selected_po": obs.get("selected_po"),
         "goods_received_note": obs.get("goods_received_note"),
         "comparison_results": obs.get("comparison_results", []),
-        "feedback":           obs.get("feedback", ""),
+        "feedback": obs.get("feedback", ""),
     }, default=str, indent=2)
-
 
 def _make_flag_discrepancy_actions(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
     messages = [
         {"role": "system", "content": _FLAG_DISCREPANCY_SYSTEM},
-        {"role": "user",   "content": _build_flag_discrepancy_prompt(obs)},
+        {"role": "user", "content": _build_flag_discrepancy_prompt(obs)},
     ]
 
-    # Use OpenAI client (routed through API_BASE_URL proxy) for raw text output
     raw_text = ""
     try:
-        client = _OpenAI(
-            base_url=API_BASE_URL,
-            api_key=API_KEY or "placeholder",
-        )
+        client = _OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
         resp = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
@@ -416,22 +338,19 @@ def _make_flag_discrepancy_actions(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
             max_tokens=800,
         )
         raw_text = resp.choices[0].message.content or ""
-        if raw_text:
-            _dbg("flag_discrepancy: LLM call succeeded via OpenAI proxy")
+        _dbg("flag_discrepancy: LLM call succeeded via OpenAI proxy")
     except Exception as exc:
         _dbg(f"[warn] flag_discrepancy LLM call failed: {exc}")
-        return []  # safe fallback — no flags, episode continues to Stage 4
+        return []
 
     raw_text = raw_text.strip()
     _dbg(f"flag_discrepancy LLM raw text: {raw_text[:400]}")
 
-    # Strip markdown fences
     if raw_text.startswith("```"):
         lines = raw_text.splitlines()
         inner = lines[1:-1] if lines[-1].strip().startswith("```") else lines[1:]
         raw_text = "\n".join(inner).strip()
 
-    # Parse: could be array or single object
     parsed: Any = None
     try:
         parsed = json.loads(raw_text)
@@ -444,7 +363,6 @@ def _make_flag_discrepancy_actions(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
                 pass
 
     if parsed is None:
-        _dbg("flag_discrepancy: could not parse LLM output, returning []")
         return []
 
     if isinstance(parsed, dict):
@@ -458,18 +376,14 @@ def _make_flag_discrepancy_actions(obs: Dict[str, Any]) -> List[Dict[str, Any]]:
             continue
         dtype = str(item.get("discrepancy_type") or "").strip().lower()
         if dtype not in VALID_DISCREPANCY_TYPES:
-            _dbg(f"  skipping unknown discrepancy_type: {dtype!r}")
             continue
         actions.append({
-            "action_type":      "flag_discrepancy",
+            "action_type": "flag_discrepancy",
             "discrepancy_type": dtype,
-            "details":          str(item.get("details") or "")[:400],
+            "details": str(item.get("details") or "")[:400],
         })
 
     return actions
-
-
-# ── Stage 4: Final Decision ───────────────────────────────────────────────
 
 _FINAL_DECISION_SYSTEM = """
 You are an expert Accounts-Payable reconciliation agent making the FINAL decision.
@@ -477,42 +391,36 @@ You are an expert Accounts-Payable reconciliation agent making the FINAL decisio
 Review the complete reconciliation state and issue the definitive verdict.
 
 Decision rules:
-  "approve"          — ALL prices, quantities, vendor name match perfectly. No extras.
+  "approve" — ALL prices, quantities, vendor name match perfectly. No extras.
   "flag_discrepancy" — Minor issues only: small price delta (≤$5) OR fuzzy vendor name mismatch ONLY.
-  "reject"           — Serious issues: large price overcharge (>$5), quantity invoiced > received,
+  "reject" — Serious issues: large price overcharge (>$5), quantity invoiced > received,
                        extra line items not in PO, or MULTIPLE simultaneous discrepancies.
 
 Respond with ONLY valid JSON — no markdown, no prose:
 {
-  "action_type":       "final_decision",
-  "decision":          "<approve|flag_discrepancy|reject>",
-  "matched_po_id":     "<po_id string>",
-  "discrepancy_flags": ["<discrepancy_type>", ...],
-  "reasoning":         "<concise explanation citing specific values>"
+  "action_type": "final_decision",
+  "decision": "<approve|flag_discrepancy|reject>",
+  "matched_po_id": "<po_id string>",
+  "discrepancy_flags": ["<discrepancy_type>",...],
+  "reasoning": "<concise explanation citing specific values>"
 }
 """.strip()
 
-
 def _build_final_decision_prompt(obs: Dict[str, Any]) -> str:
     return json.dumps({
-        "invoice":              obs.get("invoice"),
-        "selected_po":         obs.get("selected_po"),
+        "invoice": obs.get("invoice"),
+        "selected_po": obs.get("selected_po"),
         "goods_received_note": obs.get("goods_received_note"),
-        "comparison_results":  obs.get("comparison_results", []),
+        "comparison_results": obs.get("comparison_results", []),
         "flagged_discrepancies": obs.get("flagged_discrepancies", []),
-        "feedback":            obs.get("feedback", ""),
+        "feedback": obs.get("feedback", ""),
     }, default=str, indent=2)
 
-
 def _make_final_decision_action(obs: Dict[str, Any]) -> Dict[str, Any]:
-    try:
-        raw = call_llm([
-            {"role": "system", "content": _FINAL_DECISION_SYSTEM},
-            {"role": "user",   "content": _build_final_decision_prompt(obs)},
-        ])
-    except Exception as e:
-        _dbg(f"final_decision LLM failed ({e}), using fallback")
-        raw = {}
+    raw = call_llm([
+        {"role": "system", "content": _FINAL_DECISION_SYSTEM},
+        {"role": "user", "content": _build_final_decision_prompt(obs)},
+    ])
     _dbg(f"final_decision LLM raw: {raw}")
 
     decision = str(raw.get("decision") or "flag_discrepancy").strip().lower()
@@ -530,116 +438,100 @@ def _make_final_decision_action(obs: Dict[str, Any]) -> Dict[str, Any]:
     ]
 
     return {
-        "action_type":       "final_decision",
-        "decision":          decision,
-        "matched_po_id":     po_id,
+        "action_type": "final_decision",
+        "decision": decision,
+        "matched_po_id": po_id,
         "discrepancy_flags": flags,
-        "reasoning":         str(raw.get("reasoning") or "")[:500],
+        "reasoning": str(raw.get("reasoning") or "")[:500],
     }
-
 
 # ---------------------------------------------------------------------------
 # Single task runner (multi-step)
 # ---------------------------------------------------------------------------
 
 def run_task(task_id: str) -> Dict[str, Any]:
-    """Run a complete multi-step episode and return summary info."""
-    rewards:    List[float] = []
+    rewards: List[float] = []
     step_count: int = 0
-    success:    bool = False
+    success: bool = False
     final_info: Dict[str, Any] = {}
 
     log_start(task=task_id, model=MODEL_NAME)
 
     try:
-        # ── 1. Reset ──────────────────────────────────────────────────────
         obs = env_reset(task_id)
-        _dbg(f"episode_id={obs.get('episode_id')}  task={task_id}  stage={obs.get('stage')}")
+        _dbg(f"episode_id={obs.get('episode_id')} task={task_id} stage={obs.get('stage')}")
 
-        # ── 2. Stage 1 – Select PO ────────────────────────────────────────
+        # Stage 1 – Select PO
         action = _make_select_po_action(obs)
-        obs    = env_step(action)
+        obs = env_step(action)
         step_count += 1
         reward = float(obs.get("reward", 0.0))
-        done   = bool(obs.get("is_done", False))
+        done = bool(obs.get("is_done", False))
         rewards.append(reward)
-        log_step(step=step_count, action=action, reward=reward, done=done,
-                 info=obs.get("info"))
-        _dbg(f"  stage={obs.get('stage')}  cumulative={obs.get('cumulative_reward')}"
-             f"  feedback: {obs.get('feedback','')[:80]}")
+        log_step(step=step_count, action=action, reward=reward, done=done, error=None)
+        _dbg(f" stage={obs.get('stage')} cumulative={obs.get('cumulative_reward')}"
+             f" feedback: {obs.get('feedback','')[:80]}")
 
-        # ── 3. Stage 2 – Compare Items (one step per line item) ───────────
+        # Stage 2 – Compare Items
         invoice_items = (obs.get("invoice") or {}).get("line_items", [])
         compared_indices: set = set()
-        # Iterate until all items compared or stage advances
         for idx, inv_item in enumerate(invoice_items):
             if idx in compared_indices:
                 continue
             action = _make_compare_item_action(idx, inv_item, obs)
-            obs    = env_step(action)
+            obs = env_step(action)
             step_count += 1
             reward = float(obs.get("reward", 0.0))
-            done   = bool(obs.get("is_done", False))
+            done = bool(obs.get("is_done", False))
             rewards.append(reward)
-            log_step(step=step_count, action=action, reward=reward, done=done,
-                     error=None)
-            _dbg(f"  compare[{idx}]  stage={obs.get('stage')}  "
+            log_step(step=step_count, action=action, reward=reward, done=done, error=None)
+            _dbg(f" compare[{idx}] stage={obs.get('stage')} "
                  f"feedback: {obs.get('feedback','')[:80]}")
             compared_indices.add(idx)
 
-        # ── 4. Stage 3 – Flag Discrepancies ───────────────────────────────
+        # Stage 3 – Flag Discrepancies
         flag_actions = _make_flag_discrepancy_actions(obs)
-        _dbg(f"  flagging {len(flag_actions)} discrepancy(ies)")
+        _dbg(f" flagging {len(flag_actions)} discrepancy(ies)")
 
         if flag_actions:
             for flag_action in flag_actions:
-                obs    = env_step(flag_action)
+                obs = env_step(flag_action)
                 step_count += 1
                 reward = float(obs.get("reward", 0.0))
-                done   = bool(obs.get("is_done", False))
+                done = bool(obs.get("is_done", False))
                 rewards.append(reward)
-                log_step(step=step_count, action=flag_action, reward=reward, done=done,
-                         error=None)
-                _dbg(f"  flagged {flag_action['discrepancy_type']}"
-                     f"  feedback: {obs.get('feedback','')[:80]}")
+                log_step(step=step_count, action=flag_action, reward=reward, done=done, error=None)
+                _dbg(f" flagged {flag_action['discrepancy_type']}"
+                     f" feedback: {obs.get('feedback','')[:80]}")
         else:
-            _dbg("  no discrepancies flagged in stage 3")
+            _dbg(" no discrepancies flagged in stage 3")
 
-        # ── 5. Stage 4 – Final Decision ───────────────────────────────────
+        # Stage 4 – Final Decision
         action = _make_final_decision_action(obs)
-        obs    = env_step(action)
+        obs = env_step(action)
         step_count += 1
         reward = float(obs.get("reward", 0.0))
-        done   = bool(obs.get("is_done", True))
+        done = bool(obs.get("is_done", True))
         rewards.append(reward)
-        log_step(step=step_count, action=action, reward=reward, done=done,
-                 error=None)
-        _dbg(f"  final stage={obs.get('stage')}  done={done}  "
+        log_step(step=step_count, action=action, reward=reward, done=done, error=None)
+        _dbg(f" final stage={obs.get('stage')} done={done} "
              f"cumulative={obs.get('cumulative_reward')}")
 
-        # ── Episode outcome ───────────────────────────────────────────────
         cumulative = float(obs.get("cumulative_reward", sum(rewards)))
-        success    = cumulative >= SUCCESS_THRESHOLD
+        success = cumulative >= SUCCESS_THRESHOLD
         final_info = obs.get("info", {})
         final_info["cumulative_reward"] = cumulative
 
     except requests.exceptions.ConnectionError as conn_err:
         _dbg(f"[ERROR] Cannot reach env server at {ENV_SERVER_URL}: {conn_err}")
-        _dbg("Set ENV_BASE_URL to the correct server URL.")
-        try:
-            call_llm([{"role": "user", "content": "ping"}])
-        except Exception:
-            pass
     except Exception as exc:
         _dbg(f"[ERROR] Unexpected error in task '{task_id}': {exc}")
         import traceback
         traceback.print_exc(file=sys.stderr)
 
-    # log_end score should be the normalized_score from the final step's info
     normalized_task_score = final_info.get("normalized_score", 0.0)
     log_end(success=success, steps=step_count, score=normalized_task_score, rewards=rewards)
     return final_info
-
 
 # ---------------------------------------------------------------------------
 # Multi-task runner
@@ -651,24 +543,22 @@ def run_all_tasks() -> None:
         info = run_task(task_id)
         results.append({"task_id": task_id, **info})
 
-    # Summary goes to stderr to avoid polluting stdout
     print("\n" + "=" * 60, file=sys.stderr)
-    print("  SUMMARY", file=sys.stderr)
+    print(" SUMMARY", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
     total = 0.0
     for r in results:
         cr = r.get("cumulative_reward", 0.0)
         total += cr
         icon = "[PASS]" if cr >= SUCCESS_THRESHOLD else "[FAIL]"
-        print(f"  {icon}  {r['task_id']:<35s}  cumulative={cr:.4f}  "
+        print(f" {icon} {r['task_id']:<35s} cumulative={cr:.4f} "
               f"decision={r.get('submitted_decision','?')}"
-              f"  correct={r.get('decision_correct','?')}",
+              f" correct={r.get('decision_correct','?')}",
               file=sys.stderr)
     n = len(results)
-    print(f"\n  Avg cumulative: {total/n if n else 0:.4f}  "
+    print(f"\n Avg cumulative: {total/n if n else 0:.4f} "
           f"Passed: {sum(1 for r in results if r.get('cumulative_reward',0) >= SUCCESS_THRESHOLD)}/{n}",
           file=sys.stderr)
-
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -684,28 +574,21 @@ def main() -> None:
         help="Task to run. Use 'all' or one of: " + ", ".join(ALL_TASKS),
     )
     parser.add_argument("--base-url", default=None, help="Override ENV_BASE_URL")
-    parser.add_argument("--provider", default=None,
-                        choices=["together", "groq", "openai"],
-                        help="Override LLM_PROVIDER")
     parser.add_argument("--model", default=None, help="Override MODEL_NAME")
     args = parser.parse_args()
 
-    global ENV_SERVER_URL, API_BASE_URL, MODEL_NAME
-    if args.base_url: ENV_SERVER_URL = args.base_url
-    if args.model:    MODEL_NAME    = args.model
+    global ENV_SERVER_URL, MODEL_NAME
+    if args.base_url:
+        ENV_SERVER_URL = args.base_url
+    if args.model:
+        MODEL_NAME = args.model
 
-    if not API_KEY:
-        print("[warn] API_KEY is not set — set it in .env or the environment.",
-              file=sys.stderr, flush=True)
-
-    # Guarantee the proxy key is registered before running any tasks
     _warm_up_proxy()
 
     if args.task == "all":
         run_all_tasks()
     else:
         run_task(args.task)
-
 
 if __name__ == "__main__":
     main()
