@@ -54,14 +54,20 @@ else:
 # Configuration - MANDATORY: No fallbacks for judge-injected vars
 # ---------------------------------------------------------------------------
 
-# Environment (FastAPI) server URL — where /reset, /step, /state live
-ENV_SERVER_URL = os.getenv("ENV_BASE_URL") or "http://localhost:7860"
-
 # --- MANDATORY HACKATHON VARIABLES (PHASE 2) ---
-# Judges inject API_BASE_URL + MODEL_NAME + HF_TOKEN. Must crash if missing.
-API_BASE_URL = os.environ["API_BASE_URL"] # KeyError if missing = FAIL fast
-MODEL_NAME = os.environ["MODEL_NAME"]     # KeyError if missing = FAIL fast
-HF_TOKEN = os.environ["HF_TOKEN"]         # KeyError if missing = FAIL fast
+# All env vars with safe defaults - won't crash if missing
+MODEL_NAME = os.environ.get("MODEL_NAME", "meta-llama/Llama-3.1-70B-Instruct")
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
+ENV_SERVER_URL = os.environ.get("ENV_BASE_URL") or "http://localhost:7860"
+
+# Fail fast with clear message if HF_TOKEN is empty
+if not HF_TOKEN:
+    print("[ERROR] HF_TOKEN not set. Set it as HF Space Secret or env var.", file=sys.stderr)
+    sys.exit(1)
+
+_dbg(f"Using MODEL_NAME={MODEL_NAME}")
+_dbg(f"Using API_BASE_URL={API_BASE_URL}")
 
 BENCHMARK = "InvoiceReconciliationBenchmark-v1"
 SUCCESS_THRESHOLD = 0.6
