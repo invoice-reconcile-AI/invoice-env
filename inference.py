@@ -529,8 +529,11 @@ def run_task(task_id: str) -> Dict[str, Any]:
         import traceback
         traceback.print_exc(file=sys.stderr)
 
-    normalized_task_score = final_info.get("normalized_score", 0.0)
-    log_end(success=success, steps=step_count, score=normalized_task_score, rewards=rewards)
+    # STRICT COMPLIANCE: Each task's score must be strictly between 0 and 1 (not 0.0 and not 1.0)
+    raw_score = float(final_info.get("normalized_score", 0.0))
+    clamped_score = max(0.01, min(0.99, raw_score))
+    
+    log_end(success=success, steps=step_count, score=clamped_score, rewards=rewards)
     return final_info
 
 # ---------------------------------------------------------------------------
