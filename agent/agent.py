@@ -22,12 +22,13 @@ from typing import Any
 
 import requests
 
-# Load .env file automatically (no-op if python-dotenv not installed or .env missing)
-try:
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
-except ImportError:
-    pass
+# Load .env file automatically (Skip if in validation environment)
+if not os.getenv("API_BASE_URL") and not os.getenv("API_KEY"):
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+    except ImportError:
+        pass
 
 # ---------------------------------------------------------------------------
 # Config
@@ -363,10 +364,10 @@ def main() -> None:
     parser.add_argument("--model", default=None, help="Override LLM_MODEL env var")
     args = parser.parse_args()
 
-    global BASE_URL, LLM_PROVIDER, LLM_MODEL
-    if args.base_url:  BASE_URL     = args.base_url
-    if args.provider:  LLM_PROVIDER = args.provider
-    if args.model:     LLM_MODEL    = args.model
+    global ENV_SERVER_URL, LLM_PROVIDER, LLM_MODEL
+    if args.base_url:  ENV_SERVER_URL = args.base_url
+    if args.provider:  LLM_PROVIDER    = args.provider
+    if args.model:     LLM_MODEL       = args.model
 
     if not LLM_API_KEY:
         print("[warn] LLM_API_KEY is not set. Set it in .env or the environment.")

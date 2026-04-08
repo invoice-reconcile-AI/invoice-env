@@ -825,7 +825,9 @@ class InvoiceReconciliationEnv:
 
         # ── Normalised score 0.0–1.0 ──────────────────────────────────────
         max_reward = float(ep.scenario.get("max_reward", 1.20))
-        normalized_score = round(max(0.0, min(1.0, final_cumulative / max_reward)), 4)
+        # ── Normalised score strictly within (0, 1) per Phase 2 rules ──────
+        raw_score = final_cumulative / max_reward
+        normalized_score = round(max(0.01, min(0.99, raw_score)), 4)
 
         result_label = (
             "correct"   if action_correct and disc_reward >= 0.08 else
