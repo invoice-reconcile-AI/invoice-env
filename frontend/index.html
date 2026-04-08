@@ -229,27 +229,34 @@ let aiStatusLogs = [];
 
 // Core API engine
 async function requestEngine(endpoint, actionBody = null) {
-  const opts = { method: "POST", headers: {"Content-Type": "application/json"} };
-  if(actionBody) opts.body = JSON.stringify(actionBody);
-  const res = await fetch(endpoint, opts);
-  const data = await res.json();
-  if (!res.ok) {
-     state = { error: true, message: JSON.stringify(data.detail) || "Unknown API Error" };
-  } else {
-     state = data;
+  try {
+    const opts = { method: "POST", headers: {"Content-Type": "application/json"} };
+    if(actionBody) opts.body = JSON.stringify(actionBody);
+    const res = await fetch(endpoint, opts);
+    if (!res.ok) {
+       const data = await res.json();
+       state = { error: true, message: data.detail || "API Error" };
+    } else {
+       state = await res.json();
+    }
+    updateUI();
+  } catch (err) {
+    state = { error: true, message: "Connection lost. Is server running?" };
+    updateUI();
   }
-  updateUI();
 }
 
 function updateLog(msg) {
   aiStatusLogs.push(msg);
-  document.getElementById("ai-status").innerHTML = aiStatusLogs.join("<br>");
+  const statusBox = document.getElementById("ai-status");
+  statusBox.innerHTML = aiStatusLogs.join("<br>");
+  statusBox.scrollTop = statusBox.scrollHeight;
 }
 
 function updateTimelineItem(msg) {
   const t = document.getElementById("timeline");
   if(t.innerHTML.includes("Awaiting")) t.innerHTML = "";
-  t.innerHTML += `<div class="log-item success">${msg}</div>`;
+  t.innerHTML += `<div class="log-item success" style="animation: fadeIn 0.3s ease;">${msg}</div>`;
 }
 
 // =======================
@@ -257,29 +264,35 @@ function updateTimelineItem(msg) {
 // =======================
 async function initialize() {
   const btn = document.getElementById("btn-start");
-  btn.innerText = "Processing...";
+  const original = btn.innerText;
+  btn.innerText = "⚡ Initializing...";
   btn.disabled = true;
 
   aiStatusLogs = [];
-  
   const selectedTask = document.getElementById("taskDropdown").value;
-  updateLog(`> Session initializing [${selectedTask}]...`);
+  updateLog(`> Protocol [${selectedTask}] started...`);
   
   await requestEngine("/reset", { task_id: selectedTask });
   
-  updateTimelineItem("Session Started");
-  updateLog("> Invoice loaded and parsed successfully.");
+  if (state.error) {
+    updateLog(`> ❌ Error: ${state.message}`);
+    btn.innerText = "Retry";
+    btn.disabled = false;
+    return;
+  }
+
+  updateTimelineItem("Engine Ready");
+  updateLog("> Invoice context loaded.");
   
   const dropdown = document.getElementById("poDropdown");
   dropdown.innerHTML = "";
   state.available_pos.forEach(po => {
-    dropdown.innerHTML += `<option value="${po.po_id}">[ ${po.po_id} ] - ${po.vendor_name} ($${po.total_amount})</option>`;
+    dropdown.innerHTML += `<option value="${po.po_id}">${po.po_id} - ${po.vendor_name} ($${po.total_amount})</option>`;
   });
   
   dropdown.disabled = false;
   document.getElementById("btn-po").disabled = false;
-  btn.innerText = "[ ✅ Started ]";
-  
+  btn.innerText = "✅ Ready";
   activateCard("card-po");
 }
 
@@ -288,17 +301,17 @@ async function initialize() {
 // =======================
 async function selectPO() {
   const btn = document.getElementById("btn-po");
-  btn.innerText = "Confirming...";
+  btn.innerText = "⚙️ Validating...";
   btn.disabled = true;
   document.getElementById("poDropdown").disabled = true;
 
   const po = document.getElementById("poDropdown").value;
-  updateLog(`> Selected target PO: ${po}`);
+  updateLog(`> Targeting PO ID: ${po}`);
 
   await requestEngine("/step", { action: { action_type: "select_po", po_id: po } });
   
-  updateTimelineItem(`PO Selected`);
-  btn.innerText = "[ ✅ PO Confirmed ]";
+  updateTimelineItem(`PO Linked`);
+  btn.innerText = "✅ Confirmed";
 
   document.getElementById("btn-analyze").disabled = false;
   activateCard("card-analyze");
@@ -309,10 +322,10 @@ async function selectPO() {
 // =======================
 async function runAnalysis() {
   const btn = document.getElementById("btn-analyze");
-  btn.innerText = "Analyzing invoice...";
+  btn.innerText = "🧠 Analyzing Layer By Layer...";
   btn.disabled = true;
   
-  updateLog("> Comparing line items securely...");
+  updateLog("> Scanning line items...");
 
   const items = state.invoice.line_items || [];
   const poItems = state.selected_po ? state.selected_po.line_items || [] : [];
@@ -321,18 +334,16 @@ async function runAnalysis() {
   for (let i = 0; i < items.length; i++) {
     const invItem = items[i];
     const itemName = invItem.description || `Item ${i+1}`;
-    updateLog(`> Cross-referencing: ${itemName}...`);
+    updateLog(`> Analysis: ${itemName}...`);
     
-    // Auto-Agent Logic for Payload Satisfaction
+    // Auto-Agent Logic
     const getDesc = desc => desc.toLowerCase().trim();
     const invDesc = getDesc(itemName);
     
-    // Found in PO & Price Match
     const pMatchObj = poItems.find(p => getDesc(p.description).includes(invDesc) || invDesc.includes(getDesc(p.description)));
     const foundInPo = !!pMatchObj;
     const priceMatch = foundInPo ? invItem.unit_price === pMatchObj.unit_price : false;
 
-    // Quantity match from GRN
     let qtyMatch = false;
     if (foundInPo && state.goods_received_note) {
       const gMatchObj = grnItems.find(g => getDesc(g.description).includes(invDesc) || invDesc.includes(getDesc(g.description)));
@@ -350,50 +361,18 @@ async function runAnalysis() {
       } 
     });
     
-    // Tie log actively to real backend results
-    if (state.comparison_results && state.comparison_results.length > 0) {
-      const res = state.comparison_results[state.comparison_results.length - 1]; // get latest
+    if (state.comparison_results) {
+      const res = state.comparison_results[state.comparison_results.length - 1];
       const isPerfect = (res.agent_price_matches !== false && res.agent_qty_matches !== false && res.agent_found_in_po !== false);
-      if (isPerfect) updateLog(`  └── ✔ Clean Match`);
-      else updateLog(`  └── ⚠️ Discrepancy Found`);
-    } else {
-      updateLog(`  └── ✔ Item Logged (Payload Empty)`);
+      updateLog(isPerfect ? `  └── ✅ Verified` : `  └── ⚠️ Discrepancy`);
     }
   }
 
-  updateTimelineItem("Items Compared");
-  btn.innerText = "[ ✅ Analysis Complete ]";
+  updateTimelineItem("Scan Complete");
+  btn.innerText = "✅ Analysis Complete";
 
   document.getElementById("btn-decide").disabled = false;
   activateCard("card-decide");
-}
-
-// =======================
-// CORE DECISION EVALUATOR
-// =======================
-function evaluateDecision(data) {
-  const invoice = data.invoice;
-  const po = data.selected_po;
-  const results = data.comparison_results || [];
-  
-  if (!po) return "reject";
-
-  const vendorMatch = invoice.vendor_name === po.vendor_name;
-  if (!vendorMatch) return "reject";
-
-  let hasMismatch = false;
-  for (let item of results) {
-    if (
-      !item.agent_price_matches ||
-      !item.agent_qty_matches ||
-      !item.agent_found_in_po
-    ) {
-      hasMismatch = true;
-      break;
-    }
-  }
-
-  return hasMismatch ? "reject" : "approve";
 }
 
 // =======================
@@ -401,12 +380,10 @@ function evaluateDecision(data) {
 // =======================
 async function finalDecision() {
   const btn = document.getElementById("btn-decide");
-  btn.innerText = "Processing...";
+  btn.innerText = "⚖️ Resolving Verdict...";
   btn.disabled = true;
 
-  updateLog("> Generating final evaluation...");
-
-  // Rely purely on dynamic evaluation of comparison logs
+  updateLog("> Synthesizing final decision...");
   const autoDecision = evaluateDecision(state);
 
   await requestEngine("/step", { 
@@ -416,16 +393,13 @@ async function finalDecision() {
     } 
   });
 
-  updateTimelineItem("Decision Generated");
-  btn.innerText = "[ ✅ Decision Reached ]";
+  updateTimelineItem("Verdict Reached");
+  btn.innerText = "✅ Decision Saved";
   
-  activateCard(null); // Finish state
-  
-  // Render clean output and reasoning
+  activateCard(null);
   renderReasoning(state);
   renderFinalResult(state);
   
-  // Auto-scroll
   document.getElementById("result-card").scrollIntoView({ behavior: "smooth" });
 }
 
