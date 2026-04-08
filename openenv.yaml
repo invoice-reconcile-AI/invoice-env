@@ -12,7 +12,7 @@ description: >
   Each episode returns a normalized_score in [0.0, 1.0] relative to max_reward.
 
 server:
-  base_url: http://localhost:8000
+  base_url: http://localhost:7860
   endpoints:
     reset: POST /reset
     step:  POST /step
