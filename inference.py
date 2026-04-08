@@ -100,6 +100,12 @@ def log_step(step: int, action: Dict[str, Any], reward: float,
     )
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    # Validator requires 0 < score < 1 strictly. Clamp edge cases.
+    if score >= 1.0:
+        score = 0.999
+    elif score <= 0.0:
+        score = 0.001
+
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
@@ -530,10 +536,13 @@ def run_task(task_id: str) -> Dict[str, Any]:
         traceback.print_exc(file=sys.stderr)
 
     # STRICT COMPLIANCE: Each task's score must be strictly between 0 and 1 (not 0.0 and not 1.0)
-    raw_score = float(final_info.get("normalized_score", 0.0))
-    clamped_score = max(0.01, min(0.99, raw_score))
+    normalized_task_score = float(final_info.get("normalized_score", 0.0))
+    if normalized_task_score >= 1.0:
+        normalized_task_score = 0.999
+    elif normalized_task_score <= 0.0:
+        normalized_task_score = 0.001
     
-    log_end(success=success, steps=step_count, score=clamped_score, rewards=rewards)
+    log_end(success=success, steps=step_count, score=normalized_task_score, rewards=rewards)
     return final_info
 
 # ---------------------------------------------------------------------------
