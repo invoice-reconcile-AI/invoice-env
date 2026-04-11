@@ -39,16 +39,16 @@ python inference.py --task vendor-sanctions-check
 
 ---
 
-## 🥊 Why 10 Tasks > 100 Scenarios
+## 🥊 Why 10 Deep Tasks > 100 Shallow Scenarios
 
-| Metric | "Heuristic Override Arena" | **Luminix Invoice Env** | Winner |
-| --- | --- | --- | --- |
-| **Compliance Depth** | Generic "policy" vs bias | SOC2 Type II, OFAC, SOX 404, EU VAT | Luminix 🏆 |
-| **Reward Mechanism** | `0.6·correct - 0.3·trap` | Compliance-gated: reject=0.8, approve=0.3 | Luminix 🏆 |
-| **Real Regulations** | Simulated theoretical biases | Actual US/EU law with audit trails | Luminix 🏆 |
-| **Enterprise Use** | Research demo | Deployable to SAP/Oracle AP teams | Luminix 🏆 |
+| Metric | Generic Academic Envs | **Luminix Invoice Env** | 
+| --- | --- | --- | 
+| **Compliance Depth** | Generic simulated policies | SOC2 Type II, OFAC, SOX 404, EU VAT |
+| **Reward Mechanism** | Basic `correct vs incorrect` | Compliance-gated: reject=0.8, approve=0.3 |
+| **Real Regulations** | Theoretical cognitive biases | Actual US/EU law with audit trails |
+| **Enterprise Use** | Research demonstration | Deployable to SAP/Oracle AP teams |
 
-**Summary:** 100 generic scenarios train policy heuristics. 10 SOC2/OFAC scenarios train compliance officers. For production RL, depth beats breadth.
+**Summary:** 100 generic scenarios train AI to guess policy heuristics. 10 deep regulatory scenarios train AI systems to act as enterprise compliance officers. For production RL, depth beats breadth.
 
 ---
 
