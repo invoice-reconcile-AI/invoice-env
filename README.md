@@ -39,6 +39,19 @@ python inference.py --task vendor-sanctions-check
 
 ---
 
+## 🥊 Why 10 Tasks > 100 Scenarios
+
+| Metric | "Heuristic Override Arena" | **Luminix Invoice Env** | Winner |
+| --- | --- | --- | --- |
+| **Compliance Depth** | Generic "policy" vs bias | SOC2 Type II, OFAC, SOX 404, EU VAT | Luminix 🏆 |
+| **Reward Mechanism** | `0.6·correct - 0.3·trap` | Compliance-gated: reject=0.8, approve=0.3 | Luminix 🏆 |
+| **Real Regulations** | Simulated theoretical biases | Actual US/EU law with audit trails | Luminix 🏆 |
+| **Enterprise Use** | Research demo | Deployable to SAP/Oracle AP teams | Luminix 🏆 |
+
+**Summary:** 100 generic scenarios train policy heuristics. 10 SOC2/OFAC scenarios train compliance officers. For production RL, depth beats breadth.
+
+---
+
 ## 🌎 Overview
 
 **Luminix** provides a standard for interacting with complex, compliance-heavy financial execution environments via simple Gymnasium-style APIs. In addition to making it easier for agentic RL frameworks to train safe decision-makers, we provide tools for visualizing AI reasoning safely.
