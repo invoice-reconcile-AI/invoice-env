@@ -51,15 +51,7 @@ Unlike simple classification tasks, this environment requires an AI agent to:
 
 This reflects real enterprise decision pipelines used in accounts payable systems processing $2.3T in annual invoices.
 
-## 👥 Team
 
-| Name       | Role                                                    |
-|------------|---------------------------------------------------------|
-| Mathir     | Environment design & backend                            |
-| Dharshini  |  Inference agent, evaluation, deployment & integration  |
-| Harish     | Testing & validation                                    |
-
----
 
 ## 💼 Real-World Problem
 
