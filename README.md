@@ -91,9 +91,13 @@ pytest tests/ -v --cov=server --cov-report=term
 # Coverage: 94%
 ```
 
-### 🎥 Demo Video
-**90-second walkthrough:** https://youtu.be/REPLACE_WITH_YOUR_VIDEO
-Shows: Batch upload → SOC2 violation flagged → Excel export → 3 hours saved
+### 🚀 Quick Start
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py # Launch the batch UI
+# OR
+python inference.py --task vendor-sanctions-check
+```
 
 ### 🧠 Novel Mechanism: Compliance-Gated Reward Shaping
 Unlike general QA envs, Luminix treats financial regulations as hard constraints. 
