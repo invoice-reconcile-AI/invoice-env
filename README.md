@@ -398,3 +398,17 @@ This environment demonstrates how OpenEnv can be used to simulate **production-g
 * Designed to run under constrained resources (CPU, <20 min runtime)
 * Fully compliant with OpenEnv-style interaction patterns
 * Supports reproducible evaluation via inference script
+
+---
+
+## 👥 Team
+
+**Dharshini's Team · Luminix**
+
+| Name | Contact |
+|------|---------|
+| Dharshini K | Team Lead · Luminix Invoice Compliance RL Env |
+
+**OpenEnv Hackathon 2026 — Round 1 Submission**
+
+MIT License · [OpenEnv Spec](https://github.com/meta-pytorch/OpenEnv)
