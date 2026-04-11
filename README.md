@@ -16,6 +16,8 @@ An e2e OpenEnv framework for training AI agents to safely process enterprise inv
 > **OpenEnv Hackathon 2026 · Phase 3 Submission**
 > Enterprise RL environment for Accounts Payable automation. Processes real PDF invoices via OCR, enforces SOC2 / OFAC / SOX / EU VAT policy in a compliance-gated reward function, and exports tamper-evident audit trails. Saves **3 hrs/day per AP clerk** by auto-approving safe invoices and flagging only genuine violations.
 
+![Luminix Batch Processor — 10 curriculum tasks, compliance badges, 50% auto-approval](demo.png)
+
 🚀 **Featured Example:** Train 70B LLMs to safely navigate rigorous $300K compliance violations and multi-currency mismatch edge cases without human intervention.
 
 🔥 **100/100 OpenEnv Spec:** Built natively using FastAPI, PyTest, typed observations, and compliance-gated reward architectures.
