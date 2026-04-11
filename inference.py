@@ -79,6 +79,10 @@ ALL_TASKS: List[str] = [
     "ambiguous-split-invoice",
     "compliance-soc2-vendor",        # NEW: SOC2 compliance check
     "multi-currency-compliance",     # NEW: FX policy check
+    "vat-reverse-charge",            # NEW
+    "duplicate-invoice-detection",   # NEW
+    "partial-delivery-po",           # NEW
+    "vendor-sanctions-check",        # NEW
 ]
 
 VALID_DISCREPANCY_TYPES = {
@@ -183,6 +187,7 @@ def call_llm(messages: List[Dict[str, str]]) -> Dict[str, Any]:
             messages=messages,
             temperature=0.0,
             max_tokens=600,
+            timeout=20, # NEW: Fail fast for UI
         )
         return _extract_json(resp.choices[0].message.content or "")
     except Exception as exc:

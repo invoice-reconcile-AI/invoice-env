@@ -581,6 +581,140 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
         "max_reward": 0.90,
         "compliance_rule": "FX_POLICY_REQUIRES_TREASURY_APPROVAL",
     },
+
+    "vat-reverse-charge": {
+        "description": "EU B2B invoice must apply VAT reverse charge per Directive 2006/112/EC. Agent must flag if vendor charged VAT.",
+        "invoice": Invoice(
+            invoice_id="INV-6001", vendor_name="EuroVendor GmbH", invoice_date=date(2025, 4, 5),
+            line_items=[LineItem(description="Consulting", quantity=Decimal("1"),
+                       unit_price=Decimal("10000.00"), total=Decimal("10000.00"))],
+            subtotal=Decimal("10000.00"), tax=Decimal("2000.00"), total_amount=Decimal("12000.00"),
+            currency="EUR", po_reference="PO-8001",
+        ),
+        "available_pos": [
+            PurchaseOrder(
+                po_id="PO-8001", vendor_name="EuroVendor GmbH", issue_date=date(2025, 3, 28),
+                line_items=[LineItem(description="Consulting", quantity=Decimal("1"),
+                           unit_price=Decimal("10000.00"), total=Decimal("10000.00"))],
+                total_amount=Decimal("10000.00"), currency="EUR", approved_by="procurement@buyer.com",
+            ),
+        ],
+        "correct_po_id": "PO-8001",
+        "goods_received_note": GoodsReceivedNote(
+            grn_id="GRN-6001", po_id="PO-8001", received_date=date(2025, 4, 3),
+            items_received=[LineItem(description="Consulting", quantity=Decimal("1"),
+                           unit_price=Decimal("10000.00"), total=Decimal("10000.00"))],
+            received_by="warehouse@buyer.com",
+        ),
+        "expected_final_action": "flag_discrepancy",
+        "expected_discrepancies": [DiscrepancyType.TAX_MISMATCH],
+        "max_reward": 1.00,
+        "compliance_rule": "EU_VAT_DIRECTIVE_2006_112_EC",
+    },
+    "duplicate-invoice-detection": {
+        "description": "Invoice INV-1001 already processed. Agent must reject duplicate per SOX 404.",
+        "invoice": Invoice( 
+            invoice_id="INV-1001", vendor_name="Acme Supplies Ltd.", invoice_date=date(2025, 3, 10),
+            line_items=[LineItem(description="Office Chair", quantity=Decimal("10"),
+                       unit_price=Decimal("150.00"), total=Decimal("1500.00"))],
+            subtotal=Decimal("1500.00"), tax=Decimal("150.00"), total_amount=Decimal("1650.00"),
+            currency="USD", po_reference="PO-5001",
+        ),
+        "available_pos": [
+            PurchaseOrder(
+                po_id="PO-5001",
+                vendor_name="Acme Supplies Ltd.",
+                issue_date=date(2025, 3, 1),
+                line_items=[
+                    LineItem(description="Office Chair", quantity=Decimal("10"),
+                             unit_price=Decimal("150.00"), total=Decimal("1500.00")),
+                ],
+                total_amount=Decimal("1500.00"),
+                currency="USD",
+                approved_by="manager@buyer.com",
+            ),
+        ],
+        "correct_po_id": "PO-5001",
+        "goods_received_note": GoodsReceivedNote(
+            grn_id="GRN-1001",
+            po_id="PO-5001",
+            received_date=date(2025, 3, 5),
+            items_received=[
+                LineItem(description="Office Chair", quantity=Decimal("10"),
+                         unit_price=Decimal("150.00"), total=Decimal("1500.00")),
+            ],
+            received_by="warehouse@buyer.com",
+        ),
+        "expected_final_action": "reject",
+        "expected_discrepancies": [DiscrepancyType.DUPLICATE_INVOICE],
+        "max_reward": 1.00,
+        "compliance_rule": "SOX_SECTION_404",
+        "processed_invoices": ["INV-1001"], # NEW: Track for duplicate check
+    },
+    "partial-delivery-po": {
+        "description": "GRN shows 8/10 received but invoice bills 10. Agent must calculate partial payment.",
+        "invoice": Invoice(
+            invoice_id="INV-6002", vendor_name="Global Tech Solutions Inc.", invoice_date=date(2025, 4, 6),
+            line_items=[LineItem(description="Laptop Model X", quantity=Decimal("10"),
+                       unit_price=Decimal("1100.00"), total=Decimal("11000.00"))],
+            subtotal=Decimal("11000.00"), tax=Decimal("1100.00"), total_amount=Decimal("12100.00"),
+            currency="USD", po_reference="PO-5003",
+        ),
+        "available_pos": [
+            PurchaseOrder(
+                po_id="PO-5003",
+                vendor_name="Global Tech Solutions Inc.",
+                issue_date=date(2025, 3, 10),
+                line_items=[
+                    LineItem(description="Laptop Model X", quantity=Decimal("10"),
+                             unit_price=Decimal("1100.00"), total=Decimal("11000.00")),
+                ],
+                total_amount=Decimal("11000.00"),
+                currency="USD",
+                approved_by="it_director@buyer.com",
+            )
+        ],
+        "correct_po_id": "PO-5003",
+        "goods_received_note": GoodsReceivedNote(
+            grn_id="GRN-6002", po_id="PO-5003", received_date=date(2025, 4, 4),
+            items_received=[LineItem(description="Laptop Model X", quantity=Decimal("8"), # 8 not 10
+                           unit_price=Decimal("1100.00"), total=Decimal("8800.00"))],
+            received_by="warehouse@buyer.com",
+        ),
+        "expected_final_action": "flag_discrepancy",
+        "expected_discrepancies": [DiscrepancyType.QUANTITY_MISMATCH],
+        "max_reward": 1.20,
+    },
+    "vendor-sanctions-check": {
+        "description": "Vendor on OFAC sanctions list. Must reject regardless of price/PO match per federal law.",
+        "invoice": Invoice(
+            invoice_id="INV-6003", vendor_name="BlockedCorp LLC", invoice_date=date(2025, 4, 7),
+            line_items=[LineItem(description="Raw Materials", quantity=Decimal("100"),
+                       unit_price=Decimal("50.00"), total=Decimal("5000.00"))],
+            subtotal=Decimal("5000.00"), tax=Decimal("500.00"), total_amount=Decimal("5500.00"),
+            currency="USD", po_reference="PO-8002",
+        ),
+        "available_pos": [
+            PurchaseOrder(
+                po_id="PO-8002", vendor_name="BlockedCorp LLC", issue_date=date(2025, 3, 30),
+                line_items=[LineItem(description="Raw Materials", quantity=Decimal("100"),
+                           unit_price=Decimal("50.00"), total=Decimal("5000.00"))],
+                total_amount=Decimal("5000.00"), currency="USD", approved_by="procurement@buyer.com",
+            ),
+        ],
+        "correct_po_id": "PO-8002",
+        "goods_received_note": GoodsReceivedNote(
+            grn_id="GRN-6003", po_id="PO-8002", received_date=date(2025, 4, 5),
+            items_received=[LineItem(description="Raw Materials", quantity=Decimal("100"),
+                           unit_price=Decimal("50.00"), total=Decimal("5000.00"))],
+            received_by="warehouse@buyer.com",
+        ),
+        "expected_final_action": "reject",
+        "expected_discrepancies": [DiscrepancyType.VENDOR_NAME_MISMATCH],
+        "max_reward": 1.20,
+        "compliance_rule": "OFAC_SANCTIONS_LIST",
+        "sanctioned_vendors": ["BlockedCorp LLC"],
+    },
 }
 
 
@@ -596,6 +730,10 @@ _MAX_STEPS: dict[str, int] = {
     "ambiguous-split-invoice":    14,
     "compliance-soc2-vendor":     10,   # 2 items + compliance flag
     "multi-currency-compliance":  10,   # 2 items + FX flag
+    "vat-reverse-charge":         10,
+    "duplicate-invoice-detection": 10,
+    "partial-delivery-po":        10,
+    "vendor-sanctions-check":     10,
 }
 
 
@@ -1088,6 +1226,7 @@ class InvoiceReconciliationEnv:
             confidence=confidence,
             needs_review=needs_review,
             compliance_check=compliance_rule,
+            action_history=ep.action_history,
         )
 
 

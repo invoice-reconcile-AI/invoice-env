@@ -92,6 +92,7 @@ class DiscrepancyType(str, Enum):
     PARTIAL_DELIVERY = "partial_delivery"
     EXTRA_CHARGE = "extra_charge"
     MISSING_LINE_ITEM = "missing_line_item"
+    TAX_MISMATCH = "tax_mismatch"
 
 
 class Discrepancy(BaseModel):
@@ -253,4 +254,8 @@ class InvoiceObservation(BaseModel):
     compliance_check: str | None = Field(
         None,
         description="Compliance rule applied, e.g. 'SOC2_REQUIRED', 'FX_POLICY_REQUIRES_TREASURY_APPROVAL'.",
+    )
+    action_history: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Replay log of actions taken in the episode."
     )

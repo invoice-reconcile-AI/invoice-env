@@ -41,6 +41,21 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/tasks")
+async def get_tasks():
+    return {
+        "tasks": list(_SCENARIOS.keys()),
+        "total": len(_SCENARIOS),
+        "curriculum": {
+            "easy": ["easy-exact-match"],
+            "medium": ["medium-fuzzy-match", "multi-currency-compliance", "vat-reverse-charge"],
+            "hard": ["hard-discrepancy-detection", "ambiguous-split-invoice", "compliance-soc2-vendor", "duplicate-invoice-detection"],
+            "expert": ["partial-delivery-po", "vendor-sanctions-check"]
+        },
+        "compliance_rules": list(set([s.get("compliance_rule") for s in _SCENARIOS.values() if s.get("compliance_rule")]))
+    }
+
+
 @app.post("/reset", response_model=InvoiceObservation)
 def reset(request: ResetRequest = None) -> InvoiceObservation:
     """Start a new episode for the given task_id.
@@ -92,21 +107,4 @@ def state() -> InvoiceObservation:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/tasks")
-def list_tasks() -> JSONResponse:
-    """List all available task IDs with difficulty metadata."""
-    return JSONResponse(
-        content={
-            "tasks": [
-                {
-                    "task_id": tid,
-                    "description": scenario["description"],
-                    "expected_final_action": scenario["expected_final_action"],
-                    "expected_discrepancies": [
-                        d.value for d in scenario["expected_discrepancies"]
-                    ],
-                }
-                for tid, scenario in _SCENARIOS.items()
-            ]
-        }
-    )
+
