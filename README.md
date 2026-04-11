@@ -37,6 +37,29 @@ streamlit run streamlit_app.py
 python inference.py --task vendor-sanctions-check
 ```
 
+### 🔬 Evaluator API Quick-Test
+
+Judges can quickly verify the compliance-gated endpoints using standard `curl` against the deployed Space:
+
+**1. View the Curriculum and Task Depth**
+```bash
+curl -X GET "https://huggingface.co/spaces/dharshinik1-luminix-invoice-env/tasks"
+```
+
+**2. Start a New Task (The "Reset" Endpoint)**
+```bash
+curl -X POST "https://huggingface.co/spaces/dharshinik1-luminix-invoice-env/reset" \
+  -H "Content-Type: application/json" \
+  -d '{"task_id":"compliance-soc2-vendor"}'
+```
+
+**3. Take an Action / Submit a Decision**
+```bash
+curl -X POST "https://huggingface.co/spaces/dharshinik1-luminix-invoice-env/step" \
+  -H "Content-Type: application/json" \
+  -d '{"action":{"action_type":"final_decision","decision":"reject","reasoning":"Missing SOC2"}}'
+```
+
 ---
 
 ## 🥊 Why 10 Deep Tasks > 100 Shallow Scenarios
