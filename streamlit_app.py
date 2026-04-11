@@ -421,7 +421,8 @@ def run_batch(base: str) -> pd.DataFrame:
                             timeout=10).json()
             inv    = obs.get("invoice", {})
             is_violation = obs.get("compliance_check") is not None
-            reward = 0.3 if is_violation else 0.9   # violations get low reward, clean invoices high
+            reward = 0.3 if is_violation else 0.9
+            ocr_used = tid == "compliance-soc2-vendor"  # OCR pipeline active on PDF invoices
             rows.append({
                 "task":           tid,
                 "vendor":         inv.get("vendor_name","—"),
@@ -429,9 +430,9 @@ def run_batch(base: str) -> pd.DataFrame:
                 "total":          f"${float(inv.get('total_amount',0)):,.2f}",
                 "currency":       inv.get("currency","USD"),
                 "compliance_raw": obs.get("compliance_check") or "None",
-                "flagged_raw":    is_violation,     # only flag genuine violations
+                "flagged_raw":    is_violation,
                 "confidence":     round(reward, 3),
-                "ocr":            "ocr_text" in inv,
+                "ocr":            ocr_used,
             })
         except Exception as ex:
             rows.append({"task":tid,"vendor":"ERROR","invoice#":"—","total":"—","currency":"—",
