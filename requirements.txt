@@ -12,3 +12,8 @@ openai>=1.30.0           # OpenAI-compatible
 
 # Data generation
 faker>=33.1.0
+
+# Batch processor UI (optional — not required for inference.py or Docker)
+streamlit>=1.30.0
+openpyxl>=3.1.0
+pandas>=2.0.0

@@ -84,6 +84,35 @@ tasks:
       - quantity_mismatch
       - extra_charge
 
+  - id: compliance-soc2-vendor
+    description: >
+      Invoice from non-SOC2 vendor with inflated pricing ($500 vs PO $450 per
+      unit) and unauthorized SOC2 Audit Fee charge not in PO. Company policy
+      requires SOC2 certification for vendors over $5K. Agent must detect
+      price overcharge and extra charge, then REJECT.
+    difficulty: hard
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.00
+    normalized_perfect_score: 1.0
+    expected_discrepancies:
+      - price_mismatch
+      - extra_charge
+
+  - id: multi-currency-compliance
+    description: >
+      EUR-denominated invoice against a USD Purchase Order with $800 FX-induced
+      price discrepancy on Enterprise Software License ($10800 vs PO $10000).
+      FX policy requires treasury approval for cross-currency invoices.
+      Agent must detect the price gap and FLAG for review.
+    difficulty: medium
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 0.90
+    normalized_perfect_score: 1.0
+    expected_discrepancies:
+      - price_mismatch
+
 observation_space:
   type: object
   fields:
@@ -151,5 +180,6 @@ rewards:
   stage3_valid_discrepancy_flag: 0.10
   stage3_spurious_flag_penalty: -0.05
   stage4_correct_decision:      0.30
-  stage4_discrepancy_coverage:  0.10   # prorated by fraction of expected flags covered
+  stage4_wrong_decision:       -0.30   # partial credit (was -0.60)
+  stage4_constraint_coverage:   0.20   # prorated by fraction of expected flags covered (was 0.10)
   wrong_stage_action:           -0.05

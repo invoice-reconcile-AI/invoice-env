@@ -77,6 +77,8 @@ ALL_TASKS: List[str] = [
     "medium-fuzzy-match",
     "hard-discrepancy-detection",
     "ambiguous-split-invoice",
+    "compliance-soc2-vendor",        # NEW: SOC2 compliance check
+    "multi-currency-compliance",     # NEW: FX policy check
 ]
 
 VALID_DISCREPANCY_TYPES = {

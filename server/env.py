@@ -407,6 +407,180 @@ _SCENARIOS: dict[str, dict[str, Any]] = {
         # max_reward = 0.20 (PO) + 3×0.10 (items) + 3×0.10 (flags) + 0.30+0.10 (decision)
         "max_reward": 1.20,
     },
+
+    # ── NEW: Compliance SOC2 vendor task ────────────────────────────────────
+    # Tests whether the agent catches inflated pricing and unauthorized fees
+    # from a non-SOC2 vendor. Real-world: SOC2 violations cost $250K+ in
+    # audit penalties (Gartner 2024).
+    "compliance-soc2-vendor": {
+        "description": (
+            "Invoice from a non-SOC2 vendor with inflated cloud storage pricing "
+            "and an unauthorized 'SOC2 Audit Fee' line item not in the PO. "
+            "Company policy requires vendors over $5K to be SOC2 certified. "
+            "Agent must detect price overcharge and extra charge, then REJECT."
+        ),
+        "invoice": Invoice(
+            invoice_id="INV-5001",
+            vendor_name="CheapCorp LLC",
+            invoice_date=date(2025, 4, 5),
+            line_items=[
+                LineItem(description="Cloud Storage Annual",
+                         quantity=Decimal("12"),
+                         unit_price=Decimal("500.00"),     # PO: $450 → price_mismatch
+                         total=Decimal("6000.00")),
+                LineItem(description="SOC2 Compliance Audit Fee",  # not in PO → extra_charge
+                         quantity=Decimal("1"),
+                         unit_price=Decimal("1200.00"),
+                         total=Decimal("1200.00")),
+            ],
+            subtotal=Decimal("7200.00"),
+            tax=Decimal("720.00"),
+            total_amount=Decimal("7920.00"),
+            currency="USD",
+            po_reference="PO-7001",
+        ),
+        "available_pos": [
+            PurchaseOrder(
+                po_id="PO-7001",
+                vendor_name="CheapCorp LLC",
+                issue_date=date(2025, 3, 20),
+                line_items=[
+                    LineItem(description="Cloud Storage Annual",
+                             quantity=Decimal("12"),
+                             unit_price=Decimal("450.00"),   # $50 less than invoice
+                             total=Decimal("5400.00")),
+                ],
+                total_amount=Decimal("5400.00"),
+                currency="USD",
+                approved_by="procurement@buyer.com",
+            ),
+            PurchaseOrder(
+                po_id="PO-7002",
+                vendor_name="SecureVault Inc.",
+                issue_date=date(2025, 3, 18),
+                line_items=[
+                    LineItem(description="Cloud Storage Annual",
+                             quantity=Decimal("10"),
+                             unit_price=Decimal("650.00"),
+                             total=Decimal("6500.00")),
+                ],
+                total_amount=Decimal("6500.00"),
+                currency="USD",
+                approved_by="procurement@buyer.com",
+            ),
+        ],
+        "correct_po_id": "PO-7001",
+        "goods_received_note": GoodsReceivedNote(
+            grn_id="GRN-5001",
+            po_id="PO-7001",
+            received_date=date(2025, 4, 1),
+            items_received=[
+                LineItem(description="Cloud Storage Annual",
+                         quantity=Decimal("12"),
+                         unit_price=Decimal("450.00"),
+                         total=Decimal("5400.00")),
+            ],
+            received_by="warehouse@buyer.com",
+        ),
+        "expected_final_action": "reject",
+        "expected_discrepancies": [
+            DiscrepancyType.PRICE_MISMATCH,       # $500 vs $450 per unit
+            DiscrepancyType.EXTRA_CHARGE,          # SOC2 Audit Fee not in PO
+        ],
+        # max_reward = 0.20 (PO) + 2×0.10 (items) + 2×0.10 (flags) + 0.30+0.10 (decision)
+        "max_reward": 1.00,
+        "compliance_rule": "SOC2_REQUIRED_FOR_ORDERS_OVER_5000",
+    },
+
+    # ── NEW: Multi-currency compliance task ─────────────────────────────────
+    # EUR invoice against USD PO — FX policy requires treasury approval.
+    # Real-world: currency mismatch errors cause $50K+ FX losses per incident.
+    "multi-currency-compliance": {
+        "description": (
+            "EUR-denominated invoice against a USD Purchase Order creates an "
+            "$800 FX-induced price discrepancy. Company FX policy requires "
+            "treasury approval for cross-currency invoices. Agent must detect "
+            "the price gap and FLAG for review."
+        ),
+        "invoice": Invoice(
+            invoice_id="INV-5002",
+            vendor_name="EuroTech GmbH",
+            invoice_date=date(2025, 4, 10),
+            line_items=[
+                LineItem(description="Enterprise Software License",
+                         quantity=Decimal("1"),
+                         unit_price=Decimal("10800.00"),  # EUR→USD spot vs PO $10000
+                         total=Decimal("10800.00")),
+                LineItem(description="Implementation Support",
+                         quantity=Decimal("1"),
+                         unit_price=Decimal("2500.00"),
+                         total=Decimal("2500.00")),
+            ],
+            subtotal=Decimal("13300.00"),
+            tax=Decimal("1330.00"),
+            total_amount=Decimal("14630.00"),
+            currency="EUR",
+            po_reference="PO-7003",
+        ),
+        "available_pos": [
+            PurchaseOrder(
+                po_id="PO-7003",
+                vendor_name="EuroTech GmbH",
+                issue_date=date(2025, 3, 25),
+                line_items=[
+                    LineItem(description="Enterprise Software License",
+                             quantity=Decimal("1"),
+                             unit_price=Decimal("10000.00"),
+                             total=Decimal("10000.00")),
+                    LineItem(description="Implementation Support",
+                             quantity=Decimal("1"),
+                             unit_price=Decimal("2500.00"),
+                             total=Decimal("2500.00")),
+                ],
+                total_amount=Decimal("12500.00"),
+                currency="USD",
+                approved_by="procurement@buyer.com",
+            ),
+            PurchaseOrder(
+                po_id="PO-7099",
+                vendor_name="TechMax Solutions",
+                issue_date=date(2025, 3, 15),
+                line_items=[
+                    LineItem(description="Software License Basic",
+                             quantity=Decimal("5"),
+                             unit_price=Decimal("1500.00"),
+                             total=Decimal("7500.00")),
+                ],
+                total_amount=Decimal("7500.00"),
+                currency="USD",
+                approved_by="procurement@buyer.com",
+            ),
+        ],
+        "correct_po_id": "PO-7003",
+        "goods_received_note": GoodsReceivedNote(
+            grn_id="GRN-5002",
+            po_id="PO-7003",
+            received_date=date(2025, 4, 8),
+            items_received=[
+                LineItem(description="Enterprise Software License",
+                         quantity=Decimal("1"),
+                         unit_price=Decimal("10000.00"),
+                         total=Decimal("10000.00")),
+                LineItem(description="Implementation Support",
+                         quantity=Decimal("1"),
+                         unit_price=Decimal("2500.00"),
+                         total=Decimal("2500.00")),
+            ],
+            received_by="warehouse@buyer.com",
+        ),
+        "expected_final_action": "flag_discrepancy",
+        "expected_discrepancies": [
+            DiscrepancyType.PRICE_MISMATCH,       # $10800 vs $10000 (FX gap)
+        ],
+        # max_reward = 0.20 (PO) + 2×0.10 (items) + 1×0.10 (flag) + 0.30+0.10 (decision)
+        "max_reward": 0.90,
+        "compliance_rule": "FX_POLICY_REQUIRES_TREASURY_APPROVAL",
+    },
 }
 
 
@@ -419,7 +593,9 @@ _MAX_STEPS: dict[str, int] = {
     "easy-exact-match":           8,
     "medium-fuzzy-match":        10,
     "hard-discrepancy-detection": 12,
-    "ambiguous-split-invoice":    14,  # extra steps for the reasoning-heavy ambiguous task
+    "ambiguous-split-invoice":    14,
+    "compliance-soc2-vendor":     10,   # 2 items + compliance flag
+    "multi-currency-compliance":  10,   # 2 items + FX flag
 }
 
 
@@ -802,11 +978,11 @@ class InvoiceReconciliationEnv:
 
         ep.stage = "finished"
 
-        # ── Decision reward: +0.30 correct, −0.60 wrong ────────────────────
+        # ── Decision reward: +0.30 correct, −0.30 wrong (partial credit style) ──
         action_correct = action.decision == ep.expected_final_action
-        decision_reward = 0.30 if action_correct else -0.60
+        decision_reward = 0.30 if action_correct else -0.30
 
-        # ── Discrepancy completeness reward (0–0.10, prorated) ─────────────
+        # ── Constraint identification reward (0–0.20, prorated) ───────────
         expected_set  = set(ep.expected_discrepancies)
         submitted_set = set(action.discrepancy_flags)
         flagged_set   = {d.discrepancy_type for d in ep.flagged_discrepancies}
@@ -815,10 +991,10 @@ class InvoiceReconciliationEnv:
 
         if expected_set:
             correctly_covered = final_flags & expected_set
-            disc_reward = 0.10 * (len(correctly_covered) / len(expected_set))
+            disc_reward = 0.20 * (len(correctly_covered) / len(expected_set))
         else:
             # No discrepancies expected — full credit if agent flagged nothing
-            disc_reward = 0.10 if not final_flags else 0.05
+            disc_reward = 0.20 if not final_flags else 0.10
 
         total_step_reward = round(decision_reward + disc_reward, 4)
         final_cumulative  = round(ep.cumulative_reward + total_step_reward, 4)
@@ -882,6 +1058,17 @@ class InvoiceReconciliationEnv:
     ) -> InvoiceObservation:
         ep = self._ep
         assert ep is not None
+
+        # ── Compute confidence scores ──────────────────────────────────────
+        confidence: dict[str, float] = {}
+        if ep.selected_po:
+            confidence["po_selection"] = 1.0 if ep.selected_po.po_id == ep.correct_po_id else 0.3
+        if ep.comparison_results:
+            correct = sum(1 for r in ep.comparison_results if r.get("correct"))
+            confidence["item_comparison"] = round(correct / len(ep.comparison_results), 2)
+        needs_review = min(confidence.values(), default=1.0) < 0.8 if confidence else False
+        compliance_rule = ep.scenario.get("compliance_rule")
+
         return InvoiceObservation(
             episode_id=ep.episode_id,
             task_id=ep.task_id,
@@ -898,6 +1085,9 @@ class InvoiceReconciliationEnv:
             cumulative_reward=ep.cumulative_reward,
             info=info,
             feedback=feedback,
+            confidence=confidence,
+            needs_review=needs_review,
+            compliance_check=compliance_rule,
         )
 
 

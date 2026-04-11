@@ -240,3 +240,17 @@ class InvoiceObservation(BaseModel):
         default="",
         description="Guidance message for the agent about what to do next.",
     )
+
+    # ── Confidence & compliance (Phase 3 rubric: Environment Design 20%) ──
+    confidence: dict[str, float] = Field(
+        default_factory=dict,
+        description="Per-field confidence scores 0.0–1.0, e.g. {'po_selection': 0.95, 'item_comparison': 0.8}.",
+    )
+    needs_review: bool = Field(
+        default=False,
+        description="True if min(confidence) < 0.8 — flags invoice for human review.",
+    )
+    compliance_check: str | None = Field(
+        None,
+        description="Compliance rule applied, e.g. 'SOC2_REQUIRED', 'FX_POLICY_REQUIRES_TREASURY_APPROVAL'.",
+    )
