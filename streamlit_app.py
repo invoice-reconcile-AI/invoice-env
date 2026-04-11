@@ -4,128 +4,288 @@ import pandas as pd
 import io
 import time
 
-# === PAGE CONFIG ===
 st.set_page_config(
-    page_title="Luminix | Compliance RL",
+    page_title="Luminix | AI Invoice Compliance",
     page_icon="💎",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# === CUSTOM CSS - Professional Dark Theme ===
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBAL CSS
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+html, body, [class*="css"]  { font-family: 'Inter', sans-serif !important; }
+section[data-testid="stSidebar"] { background: #0d1117 !important; border-right: 1px solid #21262d; }
+.main .block-container { padding-top: 1.4rem !important; max-width: 1300px; }
 
-    /* Main background */
-    .main {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-    }
+/* ── App background ── */
+.stApp { background: #010409; }
 
-    /* Cards */
-    .metric-card {
-        background: rgba(30, 41, 59, 0.6);
-        border: 1px solid rgba(148, 163, 184, 0.1);
-        border-radius: 12px;
-        padding: 20px;
-        backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
-        margin-bottom: 1rem;
-    }
-    .metric-card:hover {
-        border: 1px solid rgba(99, 102, 241, 0.5);
-        transform: translateY(-2px);
-        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15);
-    }
+/* ── Hide clutter ── */
+#MainMenu, footer, header { visibility: hidden; }
+.stDeployButton { display: none; }
 
-    /* Compliance badges */
-    .badge-soc2  { background: linear-gradient(135deg, #dc2626, #991b1b); color: white; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 11px; white-space: nowrap; }
-    .badge-fx    { background: linear-gradient(135deg, #ea580c, #9a3412); color: white; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 11px; white-space: nowrap; }
-    .badge-ofac  { background: linear-gradient(135deg, #7c2d12, #451a03); color: white; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 11px; white-space: nowrap; }
-    .badge-vat   { background: linear-gradient(135deg, #ca8a04, #854d0e); color: white; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 11px; white-space: nowrap; }
-    .badge-sox   { background: linear-gradient(135deg, #7c3aed, #5b21b6); color: white; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 11px; white-space: nowrap; }
-    .badge-safe  { background: linear-gradient(135deg, #16a34a, #15803d); color: white; padding: 3px 10px; border-radius: 6px; font-weight: 600; font-size: 11px; white-space: nowrap; }
+/* ══════════════════════════════════════════════
+   HERO SECTION
+══════════════════════════════════════════════ */
+.hero-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px;
+    padding: 48px 52px 44px;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 60%, #0d1b2a 100%);
+    border: 1px solid #30363d;
+    box-shadow: 0 0 0 1px rgba(99,102,241,.08),
+                0 24px 80px rgba(0,0,0,.6);
+}
+.hero-wrap::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 50% at 80% 50%,
+                rgba(99,102,241,.18) 0%, transparent 70%);
+    pointer-events: none;
+}
+.hero-glow {
+    position: absolute; top: -60px; right: -60px;
+    width: 320px; height: 320px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(99,102,241,.25) 0%, transparent 70%);
+    filter: blur(40px); pointer-events: none;
+}
+.hero-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(99,102,241,.15);
+    border: 1px solid rgba(99,102,241,.35);
+    border-radius: 100px;
+    padding: 5px 14px;
+    font-size: 12px; font-weight: 600;
+    color: #818cf8; letter-spacing: .04em;
+    margin-bottom: 20px;
+}
+.hero-tag::before { content: '●'; color: #4ade80; font-size: 8px; }
+.hero-title {
+    font-size: 3rem; font-weight: 800; line-height: 1.12;
+    background: linear-gradient(135deg, #f0f6fc 0%, #8b949e 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 14px;
+}
+.hero-title span {
+    background: linear-gradient(135deg, #818cf8, #6366f1);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+    font-size: 1.05rem; color: #8b949e; line-height: 1.65;
+    max-width: 680px; margin-bottom: 28px;
+}
+.hero-pills { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(22,27,34,.8);
+    border: 1px solid #30363d;
+    border-radius: 8px; padding: 7px 14px;
+    font-size: 12.5px; font-weight: 500; color: #c9d1d9;
+    font-family: 'JetBrains Mono', monospace;
+}
+.hero-pill .dot { width: 7px; height: 7px; border-radius: 50%; }
 
-    /* Results table */
-    .results-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 13px;
-        margin-top: 1rem;
-    }
-    .results-table th {
-        background: rgba(99, 102, 241, 0.15);
-        color: #94a3b8;
-        text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        padding: 12px 16px;
-        text-align: left;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-    }
-    .results-table td {
-        padding: 11px 16px;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.05);
-        color: #e2e8f0;
-        vertical-align: middle;
-    }
-    .results-table tr:hover td {
-        background: rgba(99, 102, 241, 0.05);
-    }
+/* ══════════════════════════════════════════════
+   STAT CARDS
+══════════════════════════════════════════════ */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+.stat-card {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 14px;
+    padding: 22px 24px;
+    position: relative; overflow: hidden;
+    transition: border-color .25s, box-shadow .25s, transform .2s;
+}
+.stat-card:hover {
+    border-color: #6366f1;
+    box-shadow: 0 0 28px rgba(99,102,241,.2);
+    transform: translateY(-3px);
+}
+.stat-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    border-radius: 14px 14px 0 0;
+}
+.stat-label { font-size: 11.5px; font-weight: 600; color: #6e7681; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+.stat-value { font-size: 2rem; font-weight: 700; color: #f0f6fc; line-height: 1; margin-bottom: 4px; }
+.stat-delta { font-size: 12px; color: #4ade80; font-weight: 500; }
+.stat-delta.warn { color: #f59e0b; }
 
-    /* Header */
-    .main-header {
-        font-size: 2.4rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0.4rem;
-        line-height: 1.2;
-    }
+/* ══════════════════════════════════════════════
+   SECTION CARDS
+══════════════════════════════════════════════ */
+.section-card {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+}
+.section-title {
+    font-size: 15px; font-weight: 700; color: #f0f6fc;
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 20px; padding-bottom: 14px;
+    border-bottom: 1px solid #21262d;
+}
 
-    /* Subheader */
-    .sub-header {
-        font-size: 1.05rem;
-        color: #94a3b8;
-        margin-bottom: 1.5rem;
-    }
+/* ══════════════════════════════════════════════
+   RESULTS TABLE
+══════════════════════════════════════════════ */
+.results-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #21262d; }
+table.rt {
+    width: 100%; border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+}
+table.rt thead tr { background: #161b22; }
+table.rt thead th {
+    padding: 13px 16px; text-align: left;
+    color: #6e7681; font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em;
+    border-bottom: 1px solid #30363d;
+    white-space: nowrap;
+}
+table.rt tbody tr { transition: background .15s; }
+table.rt tbody tr:hover { background: rgba(99,102,241,.06); }
+table.rt tbody td {
+    padding: 12px 16px; color: #c9d1d9;
+    border-bottom: 1px solid #161b22; vertical-align: middle;
+}
+table.rt tbody tr:last-child td { border-bottom: none; }
+.idx-cell { color: #484f58; font-size: 11px; }
 
-    /* Tech stack bar */
-    .tech-bar {
-        background: rgba(15, 23, 42, 0.9);
-        border: 1px solid rgba(99, 102, 241, 0.25);
-        border-radius: 8px;
-        padding: 12px 20px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 0.82rem;
-        color: #cbd5e1;
-        margin-bottom: 1.8rem;
-    }
+/* Badges */
+.badge {
+    display: inline-block; padding: 3px 10px;
+    border-radius: 6px; font-size: 11px; font-weight: 700;
+    letter-spacing: .03em; white-space: nowrap;
+}
+.b-pass  { background: rgba(74,222,128,.12); color: #4ade80; border: 1px solid rgba(74,222,128,.25); }
+.b-soc2  { background: rgba(220,38,38,.15);  color: #f87171; border: 1px solid rgba(220,38,38,.3); }
+.b-fx    { background: rgba(234,88,12,.15);  color: #fb923c; border: 1px solid rgba(234,88,12,.3); }
+.b-ofac  { background: rgba(124,45,18,.3);   color: #fca5a1; border: 1px solid rgba(220,38,38,.4); }
+.b-vat   { background: rgba(202,138,4,.15);  color: #fbbf24; border: 1px solid rgba(202,138,4,.3); }
+.b-sox   { background: rgba(124,58,237,.15); color: #a78bfa; border: 1px solid rgba(124,58,237,.3); }
+.b-err   { background: rgba(240,68,56,.12);  color: #f87171; border: 1px solid rgba(240,68,56,.3); }
+.b-yes   { color: #f87171; font-weight: 700; }
+.b-no    { color: #4ade80; }
+.b-ocr   { color: #60a5fa; }
 
-    /* Buttons */
-    .stButton>button {
-        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
-    }
-    .stButton>button:hover {
-        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4) !important;
-        transform: translateY(-1px) !important;
-    }
+/* Confidence bar */
+.conf-wrap { display: flex; align-items: center; gap: 8px; }
+.conf-bar-bg { flex: 1; height: 4px; background: #21262d; border-radius: 9px; }
+.conf-bar    { height: 4px; border-radius: 9px;
+               background: linear-gradient(90deg, #6366f1, #818cf8); }
+.conf-val    { font-size: 11px; color: #6e7681; width: 40px; text-align: right; }
 
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+/* ══════════════════════════════════════════════
+   AUDIT PANEL
+══════════════════════════════════════════════ */
+.audit-panel {
+    background: #010409;
+    border: 1px solid #21262d;
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: #8b949e; line-height: 1.7;
+}
+.audit-row { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid #161b22; }
+.audit-row:last-child { border-bottom: none; }
+.audit-step { color: #6e7681; min-width: 50px; }
+.audit-key  { color: #7dd3fc; min-width: 120px; }
+.audit-val  { color: #c9d1d9; }
+.audit-hl   { color: #f87171; font-weight: 700; }
+.audit-ok   { color: #4ade80; font-weight: 700; }
+
+/* ══════════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════════ */
+.sidebar-logo {
+    display: flex; align-items: center; gap: 10px;
+    padding: 18px 0 14px; margin-bottom: 4px;
+}
+.sidebar-logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+}
+.sidebar-logo-text { font-size: 16px; font-weight: 700; color: #f0f6fc; }
+.sidebar-logo-sub  { font-size: 11px; color: #6e7681; }
+.sidebar-divider { border: none; border-top: 1px solid #21262d; margin: 14px 0; }
+.sidebar-section { font-size: 10.5px; font-weight: 700; color: #6e7681; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+
+/* Sidebar inputs */
+div[data-testid="stTextInput"] input {
+    background: #161b22 !important;
+    border: 1px solid #30363d !important;
+    border-radius: 8px !important;
+    color: #c9d1d9 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 12.5px !important;
+}
+div[data-testid="stTextInput"] input:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.2) !important;
+}
+
+/* RUN button override */
+button[kind="primary"] {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    border: none !important; border-radius: 10px !important;
+    font-weight: 700 !important; font-size: 13.5px !important;
+    padding: 14px 20px !important; color: white !important;
+    box-shadow: 0 4px 20px rgba(99,102,241,.35) !important;
+    transition: all .2s !important;
+}
+button[kind="primary"]:hover {
+    box-shadow: 0 8px 32px rgba(99,102,241,.55) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Download button */
+button[kind="secondary"] {
+    background: #161b22 !important;
+    border: 1px solid #30363d !important;
+    border-radius: 8px !important; color: #c9d1d9 !important;
+    font-weight: 600 !important; font-size: 12.5px !important;
+    transition: border-color .2s !important;
+}
+button[kind="secondary"]:hover { border-color: #6366f1 !important; }
+
+/* Progress bar */
+div[data-testid="stProgress"] > div > div { background: #6366f1 !important; border-radius: 9px !important; }
+div[data-testid="stProgress"] > div { background: #21262d !important; border-radius: 9px !important; }
+
+/* Info / success boxes */
+div[data-testid="stInfo"]    { background: rgba(99,102,241,.08) !important; border: 1px solid rgba(99,102,241,.25) !important; border-radius: 10px !important; color: #818cf8 !important; }
+div[data-testid="stSuccess"] { background: rgba(74,222,128,.08) !important; border: 1px solid rgba(74,222,128,.25) !important; border-radius: 10px !important; color: #4ade80 !important; }
+
+/* File uploader */
+div[data-testid="stFileUploaderDropzoneInstructions"] { color: #6e7681 !important; }
+div[data-testid="stFileUploader"] section {
+    background: #0d1117 !important;
+    border: 2px dashed #30363d !important;
+    border-radius: 10px !important;
+    transition: border-color .2s;
+}
+div[data-testid="stFileUploader"] section:hover { border-color: #6366f1 !important; }
+
+/* Metric */
+div[data-testid="stMetric"] { background: transparent !important; }
+div[data-testid="stMetricValue"] { font-size: 1.6rem !important; font-weight: 700 !important; color: #f0f6fc !important; }
+div[data-testid="stMetricDelta"] { font-size: 12px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -133,250 +293,284 @@ st.markdown("""
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 💎 Luminix Control")
-    st.markdown("---")
-    env_url = st.text_input("Environment URL", "http://localhost:7861",
-                            help="URL of the running FastAPI OpenEnv server")
+    st.markdown("""
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">💎</div>
+      <div>
+        <div class="sidebar-logo-text">Luminix</div>
+        <div class="sidebar-logo-sub">Compliance RL · v2.0</div>
+      </div>
+    </div>
+    <hr class="sidebar-divider">
+    """, unsafe_allow_html=True)
 
-    st.markdown("### 📄 Live Demo Upload")
-    uploaded_file = st.file_uploader(
-        "Upload Invoice PDF/PNG", type=["pdf", "png", "jpg", "jpeg"],
-        label_visibility="collapsed"
-    )
-    if uploaded_file:
-        st.success(f"✅ Loaded: {uploaded_file.name}")
-        st.caption("OCR extraction runs automatically on demo.")
+    st.markdown('<div class="sidebar-section">Environment</div>', unsafe_allow_html=True)
+    env_url = st.text_input("Server URL", "http://localhost:7861", label_visibility="collapsed")
 
-    st.markdown("---")
-    st.markdown("### 🎯 Demo Mode")
-    st.caption("Runs all 10 curriculum tasks through the RL environment via REST API.")
-    run_btn = st.button("▶ Run Demo (all 10 tasks)", type="primary", use_container_width=True)
+    st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-section">Upload Invoice</div>', unsafe_allow_html=True)
+    uploaded = st.file_uploader("Drop PDF / PNG / JPG", type=["pdf","png","jpg","jpeg"],
+                                label_visibility="collapsed")
+    if uploaded:
+        st.success(f"✓  {uploaded.name}")
 
-    st.markdown("---")
-    st.markdown("### 📊 Session Stats")
+    st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-section">Batch Runner</div>', unsafe_allow_html=True)
+    st.caption("Runs all 10 curriculum tasks through the RL environment and returns shaped rewards.")
+    run_btn = st.button("▶  Run Demo (all 10 tasks)", type="primary", use_container_width=True)
+
+    st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-section">Session Stats</div>', unsafe_allow_html=True)
     if "stats" in st.session_state:
         s = st.session_state.stats
-        st.metric("Invoices Processed", s.get("processed", 0))
-        st.metric("Flagged for Review", s.get("flagged", 0))
-        st.metric("Compliance Rules Hit", s.get("compliance", 0))
-        st.metric("Auto-Approval Rate", f"{s.get('approval_rate', 0):.1f}%")
+        col1, col2 = st.columns(2)
+        col1.metric("Processed",  s["processed"])
+        col2.metric("Flagged",    s["flagged"])
+        col1.metric("Compliance", s["compliance"])
+        col2.metric("Auto-Approve", f"{s['approval_rate']:.0f}%")
     else:
-        st.caption("Run demo to see live stats ↑")
+        st.caption("← Run demo to populate stats")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN HEADER
+# HERO
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown(
-    '<p class="main-header">💎 Luminix: Invoice Batch Processor with Compliance Guard</p>',
-    unsafe_allow_html=True
-)
-st.markdown(
-    '<p class="sub-header">Enterprise RL environment for AP automation. '
-    'Processes 100+ invoices/day. Flags &lt;8% for human review, saving 3 hrs/day per accountant. '
-    'SOC2 · OFAC · SOX · FX compliance built-in.</p>',
-    unsafe_allow_html=True
-)
 st.markdown("""
-<div class="tech-bar">
-  <strong>Multi-Modal Pipeline:</strong>
-  PDF/PNG Ingestion &rarr; OCR Extraction &rarr; SOC2 / OFAC / SOX / VAT Policy Engine
-  &rarr; Compliance-Gated Shaped Reward &rarr; Audit Trail Export (Excel / CSV)
-  &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Superior to text-only environments</strong>
+<div class="hero-wrap">
+  <div class="hero-glow"></div>
+  <div class="hero-tag">OpenEnv Hackathon 2026 &nbsp;·&nbsp; Phase 3 Submission</div>
+  <div class="hero-title">💎 Luminix <span>Invoice Compliance</span><br>Batch Processor</div>
+  <div class="hero-sub">
+    Enterprise RL environment for Accounts Payable automation.<br>
+    Processes 100+ invoices/day · Flags &lt;8% for human review · Saves 3 hrs/day per AP clerk.<br>
+    <strong style="color:#c9d1d9;">SOC2 · OFAC · SOX 404 · EU VAT</strong> enforcement built‑in.
+  </div>
+  <div class="hero-pills">
+    <span class="hero-pill"><span class="dot" style="background:#4ade80"></span>10 Curriculum Tasks</span>
+    <span class="hero-pill"><span class="dot" style="background:#818cf8"></span>Compliance-Gated Rewards</span>
+    <span class="hero-pill"><span class="dot" style="background:#60a5fa"></span>Multi-Modal OCR Pipeline</span>
+    <span class="hero-pill"><span class="dot" style="background:#fb923c"></span>SAP / Oracle ERP Ready</span>
+    <span class="hero-pill"><span class="dot" style="background:#f472b6"></span>SOC2 Audit Trail Export</span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# METRICS ROW  (only after first run)
+# STAT CARDS (after first run)
 # ─────────────────────────────────────────────────────────────────────────────
-if "df_results" in st.session_state and not st.session_state.df_results.empty:
-    df_m = st.session_state.df_results
-    total      = len(df_m)
-    flagged    = int(df_m["Needs_Review_raw"].sum())
-    compliance = int((df_m["Compliance_raw"] != "None").sum())
-    approval   = (total - flagged) / total * 100 if total else 0
+if "df_results" in st.session_state:
+    df_r = st.session_state.df_results
+    total      = len(df_r)
+    flagged    = int(df_r["flagged_raw"].sum())
+    compliance = int((df_r["compliance_raw"] != "None").sum())
+    approval   = round((total - flagged) / total * 100, 1) if total else 0
 
-    c1, c2, c3, c4 = st.columns(4)
-    for col, label, value, delta in [
-        (c1, "Invoices Processed", total,          "100% batch"),
-        (c2, "Flagged for Review", flagged,         f"{flagged/total*100:.1f}%"),
-        (c3, "Compliance Rules Hit", compliance,    "SOC2 / OFAC / VAT"),
-        (c4, "Auto-Approval Rate",  f"{approval:.1f}%", "Target: >92%"),
-    ]:
-        with col:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(label, value, delta)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Invoices Processed</div>
+        <div class="stat-value">{total}</div>
+        <div class="stat-delta">100% batch complete</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Flagged for Review</div>
+        <div class="stat-value">{flagged}</div>
+        <div class="stat-delta warn">{flagged/total*100:.1f}% flag rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Compliance Rules Hit</div>
+        <div class="stat-value">{compliance}</div>
+        <div class="stat-delta">SOC2 · OFAC · VAT · FX</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Auto-Approval Rate</div>
+        <div class="stat-value">{approval}%</div>
+        <div class="stat-delta">Target ≥ 92%</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# BATCH RUNNER
+# TASKS
 # ─────────────────────────────────────────────────────────────────────────────
 TASKS = [
-    "easy-exact-match",
-    "medium-fuzzy-match",
-    "hard-discrepancy-detection",
-    "ambiguous-split-invoice",
-    "compliance-soc2-vendor",
-    "multi-currency-compliance",
-    "vat-reverse-charge",
-    "duplicate-invoice-detection",
-    "partial-delivery-po",
-    "vendor-sanctions-check",
+    "easy-exact-match", "medium-fuzzy-match", "hard-discrepancy-detection",
+    "ambiguous-split-invoice", "compliance-soc2-vendor", "multi-currency-compliance",
+    "vat-reverse-charge", "duplicate-invoice-detection",
+    "partial-delivery-po", "vendor-sanctions-check",
 ]
 
-def run_batch(base_url: str) -> pd.DataFrame:
+def run_batch(base: str) -> pd.DataFrame:
     rows = []
-    bar = st.progress(0, text="Initialising batch processor…")
-
-    for i, task_id in enumerate(TASKS):
-        bar.progress((i + 1) / len(TASKS), text=f"⚙  Processing: {task_id}")
+    bar  = st.progress(0, text="Initialising…")
+    for i, tid in enumerate(TASKS):
+        bar.progress((i+1)/len(TASKS), text=f"⚙  {tid}")
         try:
-            # 1 – Reset
-            obs = requests.post(f"{base_url}/reset",
-                                json={"task_id": task_id}, timeout=10).json()
-
-            # 2 – If multi-step: select PO first
+            obs = requests.post(f"{base}/reset", json={"task_id": tid}, timeout=10).json()
             if obs.get("stage") == "select_po" and obs.get("available_pos"):
-                inv_vendor = obs["invoice"]["vendor_name"]
-                matching_po = next(
-                    (p for p in obs["available_pos"] if p["vendor_name"] == inv_vendor),
-                    obs["available_pos"][0]
-                )
-                obs = requests.post(f"{base_url}/step", json={
-                    "action": {"action_type": "select_po", "po_id": matching_po["po_id"]}
-                }, timeout=10).json()
-
-            # 3 – Final decision
-            has_violation = bool(obs.get("compliance_check"))
-            decision  = "reject" if has_violation else "approve"
-            reasoning = f"Auto: {obs.get('compliance_check', 'Standard validation')}"
-            final = requests.post(f"{base_url}/step", json={
-                "action": {"action_type": "final_decision",
-                           "decision": decision, "reasoning": reasoning}
-            }, timeout=10).json()
-
+                inv_v = obs["invoice"]["vendor_name"]
+                po    = next((p for p in obs["available_pos"] if p["vendor_name"]==inv_v),
+                             obs["available_pos"][0])
+                obs   = requests.post(f"{base}/step",
+                                      json={"action":{"action_type":"select_po","po_id":po["po_id"]}},
+                                      timeout=10).json()
+            violation = bool(obs.get("compliance_check"))
+            decision  = "reject" if violation else "approve"
+            final     = requests.post(f"{base}/step", json={"action":{
+                            "action_type":"final_decision","decision":decision,
+                            "reasoning":f"Auto: {obs.get('compliance_check','Standard')}"}},
+                            timeout=10).json()
             inv    = obs.get("invoice", {})
             reward = float(final.get("reward", 0.0))
             rows.append({
-                "Task":           task_id,
-                "Vendor":         inv.get("vendor_name", "—"),
-                "Invoice#":       inv.get("invoice_id", "—"),
-                "Total":          f"${float(inv.get('total_amount', 0)):,.2f}",
-                "Currency":       inv.get("currency", "USD"),
-                "Compliance_raw": obs.get("compliance_check") or "None",
-                "Needs_Review_raw": reward < 0.7,
-                "Confidence":     round(reward, 3),
-                "OCR":            "ocr_text" in inv,
+                "task":           tid,
+                "vendor":         inv.get("vendor_name","—"),
+                "invoice#":       inv.get("invoice_id","—"),
+                "total":          f"${float(inv.get('total_amount',0)):,.2f}",
+                "currency":       inv.get("currency","USD"),
+                "compliance_raw": obs.get("compliance_check") or "None",
+                "flagged_raw":    reward < 0.7,
+                "confidence":     round(reward, 3),
+                "ocr":            "ocr_text" in inv,
             })
-        except Exception as exc:
-            rows.append({
-                "Task": task_id, "Vendor": "—", "Invoice#": "—",
-                "Total": "—", "Currency": "—",
-                "Compliance_raw": f"ERR: {str(exc)[:30]}",
-                "Needs_Review_raw": True, "Confidence": 0.0, "OCR": False,
-            })
-        time.sleep(0.15)
-
+        except Exception as ex:
+            rows.append({"task":tid,"vendor":"ERROR","invoice#":"—","total":"—","currency":"—",
+                         "compliance_raw":str(ex)[:30],"flagged_raw":True,"confidence":0.0,"ocr":False})
+        time.sleep(0.1)
     bar.empty()
     return pd.DataFrame(rows)
 
 if run_btn:
-    with st.spinner("Running 10-task curriculum through RL environment…"):
+    with st.spinner("Running curriculum through RL environment…"):
         df_raw = run_batch(env_url)
         st.session_state.df_results = df_raw
-        total = len(df_raw)
-        flagged = int(df_raw["Needs_Review_raw"].sum())
+        total   = len(df_raw)
+        flagged = int(df_raw["flagged_raw"].sum())
         st.session_state.stats = {
-            "processed":    total,
-            "flagged":      flagged,
-            "compliance":   int((df_raw["Compliance_raw"] != "None").sum()),
-            "approval_rate": (total - flagged) / total * 100 if total else 0,
+            "processed":    total, "flagged": flagged,
+            "compliance":   int((df_raw["compliance_raw"] != "None").sum()),
+            "approval_rate": (total-flagged)/total*100 if total else 0,
         }
     st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RESULTS TABLE
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("### 📋 Batch Processing Results")
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
+st.markdown('<div class="section-title">📋 Batch Processing Results</div>', unsafe_allow_html=True)
 
 if "df_results" in st.session_state:
-    df = st.session_state.df_results.copy()
+    df = st.session_state.df_results
 
-    def compliance_badge(val: str) -> str:
+    def compliance_badge(val):
         v = str(val)
-        if "SOC2"     in v: return f'<span class="badge-soc2">{v[:22]}</span>'
-        if "FX_POLICY" in v: return f'<span class="badge-fx">{v[:22]}</span>'
-        if "OFAC"     in v: return f'<span class="badge-ofac">{v[:22]}</span>'
-        if "VAT"      in v: return f'<span class="badge-vat">{v[:22]}</span>'
-        if "SOX"      in v: return f'<span class="badge-sox">{v[:22]}</span>'
-        if v == "None":      return '<span class="badge-safe">✓ PASS</span>'
-        return f'<span style="color:#f87171">{v[:22]}</span>'
+        if v == "None":         return '<span class="badge b-pass">✓ PASS</span>'
+        if "SOC2"     in v:     return f'<span class="badge b-soc2">SOC2</span>'
+        if "FX_POLICY" in v:    return f'<span class="badge b-fx">FX POLICY</span>'
+        if "OFAC"     in v:     return f'<span class="badge b-ofac">OFAC</span>'
+        if "VAT"      in v:     return f'<span class="badge b-vat">VAT</span>'
+        if "SOX"      in v:     return f'<span class="badge b-sox">SOX</span>'
+        if "ERR"      in v:     return f'<span class="badge b-err">ERROR</span>'
+        return f'<span class="badge b-pass">{v[:14]}</span>'
 
-    display_df = pd.DataFrame({
-        "Task":           df["Task"],
-        "Vendor":         df["Vendor"],
-        "Invoice #":      df["Invoice#"],
-        "Total":          df["Total"],
-        "Currency":       df["Currency"],
-        "Compliance":     df["Compliance_raw"].apply(compliance_badge),
-        "Needs Review":   df["Needs_Review_raw"].apply(lambda x: "⚠️ Yes" if x else "✅ No"),
-        "Confidence":     df["Confidence"],
-        "OCR":            df["OCR"].apply(lambda x: "🔍 Yes" if x else "—"),
-    })
+    def conf_bar(val):
+        pct = min(max(float(val)*100, 0), 100)
+        col = "#4ade80" if pct >= 70 else ("#f59e0b" if pct >= 40 else "#f87171")
+        return (f'<div class="conf-wrap">'
+                f'<div class="conf-bar-bg"><div class="conf-bar" style="width:{pct:.0f}%;background:{col}"></div></div>'
+                f'<span class="conf-val">{val:.3f}</span></div>')
 
-    st.markdown(
-        '<div style="overflow-x:auto">'
-        + display_df.to_html(escape=False, index=True,
-                             classes="results-table", border=0)
-        + '</div>',
-        unsafe_allow_html=True
-    )
+    rows_html = ""
+    for i, row in df.iterrows():
+        nr  = '<span class="b-yes">⚠ Yes</span>' if row["flagged_raw"] else '<span class="b-no">✓ No</span>'
+        ocr = '<span class="b-ocr">🔍 Yes</span>' if row["ocr"] else '<span style="color:#484f58">—</span>'
+        rows_html += f"""
+        <tr>
+          <td class="idx-cell">{i}</td>
+          <td style="color:#c9d1d9;font-weight:500">{row["task"]}</td>
+          <td style="color:#8b949e">{row["vendor"]}</td>
+          <td style="color:#7dd3fc">{row["invoice#"]}</td>
+          <td style="font-weight:600">{row["total"]}</td>
+          <td style="color:#6e7681">{row["currency"]}</td>
+          <td>{compliance_badge(row["compliance_raw"])}</td>
+          <td>{nr}</td>
+          <td>{conf_bar(row["confidence"])}</td>
+          <td>{ocr}</td>
+        </tr>"""
 
+    table_html = f"""
+    <div class="results-wrap">
+    <table class="rt">
+      <thead>
+        <tr>
+          <th>#</th><th>Task</th><th>Vendor</th><th>Invoice #</th>
+          <th>Total</th><th>CCY</th><th>Compliance</th>
+          <th>Needs Review</th><th>Confidence</th><th>OCR</th>
+        </tr>
+      </thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+    </div>"""
+
+    st.markdown(table_html, unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Export buttons
-    col_a, col_b, col_c = st.columns([1, 1, 4])
-    with col_a:
-        csv_buf = io.BytesIO()
+    # Export row
+    c1, c2, c3 = st.columns([1,1,5])
+    with c1:
+        csv_buf = io.StringIO()
         df.to_csv(csv_buf, index=False)
         st.download_button("📊 Export CSV", csv_buf.getvalue(),
                            "luminix_audit.csv", "text/csv")
-    with col_b:
+    with c2:
         xls_buf = io.BytesIO()
         with pd.ExcelWriter(xls_buf, engine="openpyxl") as w:
             df.to_excel(w, index=False, sheet_name="Luminix Audit")
         st.download_button("📥 Export Excel", xls_buf.getvalue(),
                            "luminix_audit.xlsx",
                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    with col_c:
-        if st.button("🔄 Clear Results"):
-            del st.session_state.df_results
-            del st.session_state.stats
+    with c3:
+        if st.button("🔄 Clear"):
+            del st.session_state.df_results, st.session_state.stats
             st.rerun()
-
-    # Audit trail demo
-    st.markdown("---")
-    with st.expander("📋 Sample Audit Trail (SOC2 Decision)"):
-        st.json({
-            "episode_id": "ep-luminix-0x7f3a",
-            "task": "compliance-soc2-vendor",
-            "steps": [
-                {"step": 1, "action": "select_po",      "po_id": "PO-5001", "reward": 0.20},
-                {"step": 2, "action": "policy_check",   "rule": "SOC2_REQUIRED_FOR_ORDERS_OVER_5000", "triggered": True},
-                {"step": 3, "action": "final_decision", "decision": "REJECT", "reward": 0.80,
-                 "reasoning": "CheapCorp LLC lacks SOC2 Type II. Order value $7,920 exceeds $5,000 threshold."},
-            ],
-            "cumulative_reward": 1.00,
-            "audit_hash": "sha256:a3f9b1c2d4e5...",
-            "timestamp": "2026-04-12T00:00:00Z"
-        })
-
 else:
-    st.info("👈 Click **'Run Demo (all 10 tasks)'** in the sidebar to process the curriculum.")
+    st.info("👈  Click **Run Demo (all 10 tasks)** in the sidebar to start batch processing.")
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FOOTER
+# AUDIT TRAIL CARD
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("---")
-st.caption("Luminix v2.0  ·  OpenEnv Hackathon 2026  ·  Built with Streamlit + FastAPI + Llama-3.1")
+st.markdown("""
+<div class="section-card">
+<div class="section-title">🔐 Sample Audit Trail &nbsp;<span style="font-weight:400;color:#6e7681;font-size:12px">SOC2 Violation · compliance-soc2-vendor</span></div>
+<div class="audit-panel">
+  <div class="audit-row">
+    <span class="audit-step">STEP 1</span>
+    <span class="audit-key">select_po</span>
+    <span class="audit-val">po_id=<span style="color:#7dd3fc">PO-5001</span> &nbsp;→&nbsp; reward <span class="audit-ok">+0.20</span></span>
+  </div>
+  <div class="audit-row">
+    <span class="audit-step">CHECK</span>
+    <span class="audit-key">policy_engine</span>
+    <span class="audit-val">rule=<span class="audit-hl">SOC2_REQUIRED_FOR_ORDERS_OVER_5000</span> &nbsp;·&nbsp; amount=$7,920.00 &nbsp;·&nbsp; triggered=<span class="audit-hl">TRUE</span></span>
+  </div>
+  <div class="audit-row">
+    <span class="audit-step">STEP 2</span>
+    <span class="audit-key">final_decision</span>
+    <span class="audit-val">decision=<span class="audit-hl">REJECT</span> &nbsp;·&nbsp; reward=<span class="audit-ok">0.80</span> &nbsp;·&nbsp; reasoning="CheapCorp LLC lacks SOC2 Type II"</span>
+  </div>
+  <div class="audit-row">
+    <span class="audit-step">DONE</span>
+    <span class="audit-key">audit_hash</span>
+    <span class="audit-val" style="color:#484f58">sha256:a3f9b1c2d4e567f8… &nbsp;·&nbsp; cumulative_reward=<span class="audit-ok">1.00</span> &nbsp;·&nbsp; timestamp=2026-04-12T00:00:00Z</span>
+  </div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+
+# FOOTER
+st.markdown("""
+<div style="text-align:center;padding:24px 0 8px;color:#484f58;font-size:12px;font-family:'JetBrains Mono',monospace;">
+Luminix v2.0 &nbsp;·&nbsp; OpenEnv Hackathon 2026 &nbsp;·&nbsp; FastAPI + Streamlit + Llama-3.1
+</div>
+""", unsafe_allow_html=True)
