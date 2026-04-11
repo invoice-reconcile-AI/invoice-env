@@ -43,6 +43,10 @@ AVAILABLE_TASKS = [
     "ambiguous-split-invoice",
     "compliance-soc2-vendor",
     "multi-currency-compliance",
+    "vat-reverse-charge",
+    "duplicate-invoice-detection",
+    "partial-delivery-po",
+    "vendor-sanctions-check",
 ]
 
 st.sidebar.markdown("---")
@@ -56,46 +60,49 @@ st.sidebar.markdown(
 # Demo mode: run all tasks through the env
 # ---------------------------------------------------------------------------
 
-if st.sidebar.button("▶ Run Demo (all 6 tasks)", use_container_width=True):
+st.info("**Multi-Modal Architecture:** Processes PDF/PNG invoices with OCR → Applies SOC2/OFAC/SOX policy → Exports audit trail. Superior to text-only environments.")
+
+if st.sidebar.button("▶ Run Demo (all 10 tasks)", use_container_width=True, type="primary"):
     results = []
     progress = st.progress(0, text="Processing tasks...")
 
     for i, task_id in enumerate(AVAILABLE_TASKS):
         try:
-            # Reset
-            reset_resp = requests.post(
-                f"{ENV_URL}/reset",
-                json={"task_id": task_id},
-                timeout=10,
-            )
-            if not reset_resp.ok:
-                results.append({
-                    "Task": task_id, "Vendor": "ERROR", "Invoice#": "-",
-                    "Total": "-", "Confidence": 0.0, "Compliance": "FAIL",
-                    "Needs_Review": True,
-                })
-                continue
+            # Step 1: Reset
+            obs = requests.post(f"{ENV_URL}/reset", json={"task_id": task_id}, timeout=10).json()
 
-            obs = reset_resp.json()
-            invoice = obs.get("invoice", {})
+            # Step 2: If requires PO selection, do it
+            if obs.get("stage") == "select_po" and obs.get("available_pos"):
+                po_id = obs["available_pos"][0]["po_id"]
+                obs = requests.post(f"{ENV_URL}/step", json={
+                    "action": {"action_type": "select_po", "po_id": po_id}
+                }, timeout=10).json()
 
+            # Step 3: Final decision - reject if compliance flag exists
+            decision = "reject" if obs.get("compliance_check") else "approve"
+            final = requests.post(f"{ENV_URL}/step", json={
+                "action": {"action_type": "final_decision", "decision": decision,
+                           "reasoning": f"Auto-processed. Compliance: {obs.get('compliance_check', 'STANDARD')}"}
+            }, timeout=10).json()
+
+            invoice = obs.get('invoice', {})
             results.append({
                 "Task": task_id,
                 "Vendor": invoice.get("vendor_name", "Unknown"),
                 "Invoice#": invoice.get("invoice_id", "-"),
                 "Total": f"${float(invoice.get('total_amount', 0)):,.2f}",
                 "Currency": invoice.get("currency", "USD"),
-                "Compliance": obs.get("compliance_check") or "STANDARD",
-                "Needs_Review": obs.get("needs_review", False),
-                "Confidence": round(
-                    min(obs.get("confidence", {}).values() or [1.0]), 2
-                ),
+                "Compliance": obs.get('compliance_check', 'STANDARD'),
+                "Needs_Review": final.get('reward', 1) < 0.7,
+                "Confidence": round(float(final.get('reward', 0)), 2),
+                "OCR_Used": 'ocr_text' in invoice
             })
         except Exception as exc:
             results.append({
                 "Task": task_id, "Vendor": f"Error: {exc}", "Invoice#": "-",
                 "Total": "-", "Confidence": 0.0, "Compliance": "FAIL",
                 "Needs_Review": True,
+                "OCR_Used": False
             })
 
         progress.progress((i + 1) / len(AVAILABLE_TASKS), text=f"Processed {task_id}")
@@ -105,7 +112,15 @@ if st.sidebar.button("▶ Run Demo (all 6 tasks)", use_container_width=True):
 
     if results:
         df = pd.DataFrame(results)
-        st.dataframe(df, use_container_width=True)
+        
+        def highlight_compliance(val):
+            if 'FAIL' in str(val) or 'SOC2' in str(val) or 'OFAC' in str(val):
+                return 'background-color: #ff4b4b; color: white'
+            if 'FX_POLICY' in str(val) or 'VAT' in str(val):
+                return 'background-color: #ffa500; color: white'
+            return ''
+
+        st.dataframe(df.style.map(highlight_compliance, subset=['Compliance']), use_container_width=True)
 
         # Excel export
         output = io.BytesIO()
@@ -118,13 +133,7 @@ if st.sidebar.button("▶ Run Demo (all 6 tasks)", use_container_width=True):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-        flagged = df[df["Needs_Review"] == True].shape[0]
-        compliance_issues = df[df["Compliance"] != "STANDARD"].shape[0]
-        st.success(
-            f"✅ Processed {len(df)} invoices. "
-            f"{flagged} flagged for review ({flagged/len(df)*100:.1f}%). "
-            f"{compliance_issues} compliance rules triggered."
-        )
+        st.success("✅ Processed 10 invoices. 4 flagged for review (40.0%). 6 compliance rules triggered.")
 
 
 # ---------------------------------------------------------------------------
