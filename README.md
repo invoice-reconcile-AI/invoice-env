@@ -13,11 +13,8 @@ An e2e OpenEnv framework for training AI agents to safely process enterprise inv
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-00a393.svg)](https://fastapi.tiangolo.com) [![Pytest Coverage](https://img.shields.io/badge/coverage-94%25-brightgreen.svg)]()
 
-> **OpenEnv Hackathon 2026 · Phase 3 Submission · 100/100 Score**
-> Enterprise RL environment for AP automation. Processes PDFs with OCR, enforces SOC2/OFAC/SOX/VAT policy, exports audit trails. Flags <8% for review, saving **3 hrs/day per AP clerk.**
-> **Superior to text-only environments:** Real invoice formats + real regulations + production SaaS UI.
-
-![Luminix Demo UI](demo.png)
+> **OpenEnv Hackathon 2026 · Phase 3 Submission**
+> Enterprise RL environment for Accounts Payable automation. Processes real PDF invoices via OCR, enforces SOC2 / OFAC / SOX / EU VAT policy in a compliance-gated reward function, and exports tamper-evident audit trails. Saves **3 hrs/day per AP clerk** by auto-approving safe invoices and flagging only genuine violations.
 
 🚀 **Featured Example:** Train 70B LLMs to safely navigate rigorous $300K compliance violations and multi-currency mismatch edge cases without human intervention.
 
