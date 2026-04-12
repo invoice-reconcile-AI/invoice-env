@@ -4,8 +4,11 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt supervisor
+
+# This file runs both FastAPI and Streamlit
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 7860
 
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

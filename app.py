@@ -3,6 +3,9 @@ import requests
 import pandas as pd
 import io
 import time
+import os
+
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 st.set_page_config(
     page_title="Luminix | AI Invoice Compliance",
@@ -304,7 +307,7 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-section">Environment</div>', unsafe_allow_html=True)
-    env_url = st.text_input("Server URL", "http://localhost:7861", label_visibility="collapsed")
+    env_url = st.text_input("Server URL", API_BASE_URL, label_visibility="collapsed")
 
     st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-section">Upload Invoice</div>', unsafe_allow_html=True)
