@@ -89,6 +89,34 @@ Run verification: `pytest tests/test_baselines.py`
 
 Total Tasks: 10 curriculum-based scenarios with regulatory metadata.
 
+## 📁 Repository Structure
+
+```text
+invoice_reconciliation_env/
+├── server/
+│   ├── env.py                # Core multi-step RL environment logic
+│   ├── models.py             # Typed Pydantic schema for obs/actions
+│   └── app.py                # FastAPI endpoints for reset/step/state
+├── tests/
+│   ├── test_baselines.py     # Anti-gaming proof: random agents score <0.3
+│   └── test_env.py           # Core environment logic verification
+├── openenv.yaml              # Global task spec with regulatory metadata
+├── streamlit_app.py          # Batch UI: OCR dashboard + compliance badges
+├── inference.py              # Reference implementation for greedy agent
+├── Dockerfile                # Production-ready deployment container
+└── requirements.txt          # Deep learning and finance dependencies
+```
+
+## 🔒 Security & Compliance
+
+**Anti-Gaming Guarantees:**
+1. **Stage Locks:** Prevents `final_decision` on Turn 1. Agent must complete select → compare → flag → decide.
+2. **Exploit Defense:** Calling a final decision in the wrong stage triggers an immediate `-0.10` penalty.
+3. **Seed Control:** Task metadata is served dynamically to prevent static answer-key harvesting.
+4. **Audit Integrity:** SHA256 hashing of action histories for SOX/SOC2 replay verification.
+
+Verification: Run `pytest tests/test_baselines.py` to confirm environmental integrity.
+
 ## 👥 Team
 
 **Dharshini's Team · Luminix**
