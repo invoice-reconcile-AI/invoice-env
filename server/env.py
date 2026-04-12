@@ -1110,9 +1110,12 @@ class InvoiceReconciliationEnv:
     def _handle_final_decision(
         self, action: FinalDecisionAction, ep: _EpisodeState
     ) -> tuple[float, dict[str, Any], str]:
-        if ep.stage not in ("flag_discrepancies", "compare_items", "select_po"):
-            # Always allow final_decision from any post-reset stage (lenient)
-            pass
+        if ep.stage != "flag_discrepancies":
+            return (
+                -0.10,
+                {"error": f"Cannot submit final_decision in stage '{ep.stage}'. Complete all compare_item and flag_discrepancy steps first."},
+                f"Invalid stage. You must flag discrepancies before final decision."
+            )
 
         ep.stage = "finished"
 
