@@ -923,6 +923,13 @@ class InvoiceReconciliationEnv:
     # Stage handlers
     # ------------------------------------------------------------------
 
+    def state(self) -> InvoiceObservation:
+        """Return the current observation without advancing the episode. Mandatory for OpenEnv spec."""
+        if not self._ep:
+            raise RuntimeError("Call reset() before state().")
+        # Return observation with 0.0 reward for the current 'peek' operation
+        return self._make_obs(reward=0.0, info={}, feedback="Peeked at current state.")
+
     def _handle_select_po(
         self, action: SelectPOAction, ep: _EpisodeState
     ) -> tuple[float, dict[str, Any], str]:

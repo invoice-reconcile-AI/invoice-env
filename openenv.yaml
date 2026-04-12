@@ -29,7 +29,7 @@ tasks:
     max_steps: 8
     reward_threshold: 0.6
     max_reward: 0.80
-    normalized_perfect_score: 1.0
+    normalized_perfect_score: 0.99
     expected_discrepancies: []
     metadata:
       regulation: "Standard Accounts Payable Procedure"
