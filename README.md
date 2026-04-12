@@ -24,13 +24,13 @@ short_description: Train AI to safely process enterprise invoices against SOC2, 
 
 ## 🎯 Why Luminix Beats Text-Only Environments
 
-| Capability | HOA/Text-Only Envs | **Luminix** | Business Impact |
+| Capability | Standard RL Envs | **Luminix** | Business Impact |
 | --- | --- | --- | --- |
-| **Input Modality** | JSON strings only | **PDF/PNG/JPG + OCR pipeline** | Handles 100% of real invoices |
-| **Compliance Depth** | "authority_bias" generic | **SOC2, SOX 404, OFAC, EU VAT, FX Policy** | Prevents $14.8M fines |
+| **Input Modality** | JSON/Text only | **PDF/PNG/JPG + OCR pipeline** | Handles 100% of real invoices |
+| **Compliance Depth** | Generic rules | **SOC2, SOX 404, OFAC, EU VAT, FX Policy** | Prevents $14.8M fines |
 | **Batch Proof** | Single-step manual | **10 invoices, 50% auto-approval, Export Excel** | 3 hrs/day saved per clerk |
 | **Audit Trail** | None | **sha256 hash + step replay + action_history** | SOX/SOC2 audit-ready |
-| **Anti-Gaming** | Can approve on turn 1 | **Stage locks + baseline tests + -0.10 penalty** | Not exploitable |
+| **Anti-Gaming** | Often exploitable | **Stage locks + baseline tests + -0.10 penalty** | Not exploitable |
 | **Reviewer Evidence** | Text description | **60-sec video + ROI calc + citations** | 30-sec judge decision |
 
 ---
