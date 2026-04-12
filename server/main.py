@@ -21,116 +21,55 @@ HTML_CONTENT = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Luminix Invoice Arena</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <title>Luminix AI Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg: #0d1117;
-            --card: #161b22;
-            --border: #30363d;
-            --text: #e6edf3;
-            --accent: #58a6ff;
-            --success: #3fb950;
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 40px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .container {
-            max-width: 900px;
-            width: 100%;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        h1 {
-            font-size: 2.5rem;
-            color: var(--accent);
-            margin-bottom: 10px;
-        }
-        .badge {
-            background-color: var(--success);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 40px;
-        }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-        }
-        .card h3 {
-            margin-top: 0;
-            color: var(--accent);
-            font-family: 'JetBrains Mono', monospace;
-        }
-        code {
-            font-family: 'JetBrains Mono', monospace;
-            background: #1f2428;
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #ff7b72;
-        }
-        .footer {
-            margin-top: 60px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #8b949e;
-        }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 260px; background: #020617; border-right: 1px solid #1e293b; padding: 24px; display: flex; flex-direction: column; }
+        .main { flex: 1; overflow-y: auto; padding: 40px; }
+        .stat-card { background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+        .stat-val { font-size: 24px; font-weight: 700; color: #38bdf8; }
+        .stat-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; }
+        h1 { color: #f8fafc; font-size: 28px; margin-bottom: 8px; }
+        .badge { background: #0ea5e9; color: white; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+        pre { background: #020617; padding: 16px; border-radius: 8px; color: #38bdf8; overflow-x: auto; }
+        .endpoint { color: #10b981; font-weight: 600; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <span class="badge">OPENENV COMPLIANT v0.3.2</span>
-            <h1>Luminix Invoice Arena</h1>
-            <p>High-fidelity AI agent evaluation for complex back-office workflows.</p>
+    <div class="sidebar">
+        <h2 style="color: #38bdf8; margin-top: 0;">LUMINIX</h2>
+        <div class="stat-card">
+            <div class="stat-val">54</div>
+            <div class="stat-label">Total Task Scenarios</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val">0.99</div>
+            <div class="stat-label">Max Compliance Score</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val">4/4</div>
+            <div class="stat-label">Security Stages Live</div>
+        </div>
+    </div>
+    <div class="main">
+        <span class="badge">OPENENV PHASE 2 COMPLIANT</span>
+        <h1>Invoice Reconciliation Engine</h1>
+        <p style="color: #94a3b8;">High-fidelity agentic environment for multi-stage financial audit evaluation.</p>
+        
+        <div class="card">
+            <h3>Environment Protocol</h3>
+            <p>Strict stage-gating enforced: <code>select_po</code> &rarr; <code>compare_items</code> &rarr; <code>flag_discrepancy</code> &rarr; <code>final_decision</code>. Anti-exploit penalty of -0.10 for out-of-order actions.</p>
         </div>
 
-        <div class="grid">
-            <div class="card">
-                <h3>54 SCENARIOS</h3>
-                <p>Varied difficulty levels from exact-match to multi-currency compliance frauds.</p>
-            </div>
-            <div class="card">
-                <h3>4-STAGE PROTOCOL</h3>
-                <p>Enforced sequence: Select PO → Compare → Flag → Decision. Zero shortcuts allowed.</p>
-            </div>
-            <div class="card">
-                <h3>SCORE CAPPING</h3>
-                <p>Strict 0.99 normalized score ceiling as per Meta Hackathon Phase 2 standards.</p>
-            </div>
-        </div>
-
-        <div style="margin-top: 40px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-            <h3 style="color: var(--accent); margin-top:0;">QUICK START</h3>
-            <pre style="background: #000; padding: 15px; border-radius: 8px; overflow-x: auto; color: #d1d5da;"><code>curl -X POST https://{{host}}/reset \
--H "Content-Type: application/json" \
--d '{"task_id": "easy-exact-match"}'</code></pre>
-        </div>
-
-        <div class="footer">
-            Built for Meta Hackathon 2026 | Powered by OpenEnv
+        <div class="card">
+            <h3>API Documentation</h3>
+            <p><span class="endpoint">POST /reset</span> - Initialize episode: <code>{"task_id": "easy-exact-match"}</code></p>
+            <p><span class="endpoint">POST /step</span> - Submit agent action</p>
+            <pre>curl -X POST https://{{host}}/reset \\
+-H "Content-Type: application/json" \\
+-d '{"task_id": "easy-exact-match"}'</pre>
         </div>
     </div>
 </body>
