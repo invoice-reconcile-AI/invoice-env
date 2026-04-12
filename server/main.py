@@ -26,9 +26,15 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 # Serving the UI at the root route
-@app.get("/")
-def serve_ui():
-    return FileResponse("frontend/index.html")
+@app.get("/", response_class=HTMLResponse)
+@app.get("/web", response_class=HTMLResponse)
+async def serve_ui():
+    return """
+    <h1>Luminix Invoice Environment - API Live</h1>
+    <p>Backend ready for OpenEnv evaluation.</p>
+    <p>Test endpoint: <code>POST /reset</code></p>
+    <p>Docs: <a href="/docs">/docs</a></p>
+    """
 
 
 class ResetRequest(BaseModel):
