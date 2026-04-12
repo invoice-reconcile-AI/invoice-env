@@ -138,6 +138,7 @@ HTML_CONTENT = """
 """
 
 @app.get("/", response_class=HTMLResponse)
+@app.get("/web", response_class=HTMLResponse)
 async def home(request: Request):
     return HTML_CONTENT.replace("{{host}}", request.headers.get("host", "localhost:7860"))
 
