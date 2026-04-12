@@ -2,8 +2,8 @@
 
 ![Luminix Demo](demo.png)
 
-[![Anti-Gaming](https://img.shields.io/badge/Anti--Gaming-Stage%20Locks%20%2B%20Baseline%20Tests-green)](https://github.com/invoice-reconcile-AI/invoice-env)
-[![Live Demo](https://img.shields.io/badge/Demo-60--sec%20Video-blue)](https://drive.google.com/file/d/1EbGihJg0a9yQ9aIiLjPtjfosURn7e5dw/view?usp=sharing)
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Space-blue)](https://huggingface.co/spaces/invoice-reconcile-AI/invoice-env)
+[![Anti-Gaming](https://img.shields.io/badge/Anti--Gaming-Stage%20Locks-green)](https://github.com/invoice-reconcile-AI/invoice-env)
 
 **Live Demo Video:** [Watch 60-sec Walkthrough](https://drive.google.com/file/d/1EbGihJg0a9yQ9aIiLjPtjfosURn7e5dw/view?usp=sharing)
 

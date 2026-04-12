@@ -159,7 +159,7 @@
   <div class="center-col">
     
     <div style="padding:14px; background:#111827; border-radius:8px; border: 1px solid #1e293b; color: #cbd5e1; font-size: 13px; font-weight: 500; display:flex; align-items:center; justify-content:space-between;">
-      <span><b>Flow:</b> 1️⃣ Initialize → 2️⃣ Select PO → 3️⃣ Run Analysis → 4️⃣ Generate Decision</span>
+      <span><b>Flow:</b> 1️⃣ Init → 2️⃣ Select → 3️⃣ Compare → 4️⃣ Flag → 5️⃣ Decide</span>
       <button onclick="location.reload()" style="background:#334155; width:auto; padding:6px 12px; font-size:12px; margin:0;">🔄 Restart</button>
     </div>
 
@@ -188,8 +188,13 @@
     </div>
 
     <div class="card" id="card-decide">
-      <h3>🏁 Step 4: Decide</h3>
+      <h3>🏁 Step 5: Decide</h3>
       <button id="btn-decide" onclick="finalDecision()" disabled>[ Generate Final Decision ]</button>
+    </div>
+
+    <div class="card" id="card-flag">
+      <h3>🚩 Step 4: Flag Discrepancies</h3>
+      <button id="btn-flag" onclick="flagDiscrepancies()" disabled>[ Submit Compliance Flags ]</button>
     </div>
 
   </div>
@@ -370,6 +375,40 @@ async function runAnalysis() {
 
   updateTimelineItem("Scan Complete");
   btn.innerText = "✅ Analysis Complete";
+
+  document.getElementById("btn-flag").disabled = false;
+  activateCard("card-flag");
+}
+
+// =======================
+// STEP 4: FLAG DISCREPANCIES
+// =======================
+async function flagDiscrepancies() {
+  const btn = document.getElementById("btn-flag");
+  btn.innerText = "🚩 Flagging Issues...";
+  btn.disabled = true;
+
+  updateLog("> Flagging architectural discrepancies...");
+  
+  const issues = (state.comparison_results || []).filter(r => !r.agent_found_in_po || !r.agent_price_matches || !r.agent_qty_matches);
+  
+  if (issues.length > 0) {
+    for (const issue of issues) {
+       await requestEngine("/step", { 
+         action: { 
+           action_type: "flag_discrepancy", 
+           discrepancy_type: "price_mismatch", // simplified for demo
+           details: "Detected mismatch in item analysis layer."
+         } 
+       });
+       updateLog(`  └── Flagged: Mismatch`);
+    }
+  } else {
+    updateLog("> No discrepancies to flag.");
+  }
+
+  updateTimelineItem("Compliance Flags Set");
+  btn.innerText = "✅ Flags Submitted";
 
   document.getElementById("btn-decide").disabled = false;
   activateCard("card-decide");
