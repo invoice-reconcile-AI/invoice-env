@@ -11,13 +11,13 @@ if not blocks:
     print("Could not find blocks")
 
 out_lines = [
-    'from typing import Any',
-    'from datetime import date',
-    'from decimal import Decimal',
-    'from server.models import Invoice, LineItem, PurchaseOrder, CompareItemAction, DiscrepancyType, GoodsReceivedNote, Discrepancy',
+    'from typing import Any\n',
+    'from datetime import date\n',
+    'from decimal import Decimal\n',
+    'from server.models import Invoice, LineItem, PurchaseOrder, CompareItemAction, DiscrepancyType, GoodsReceivedNote, Discrepancy\n',
     '\n'
 ]
-out_lines.append(scen_str[:-2]) # remove the closing }
+out_lines.append(scen_str[:scen_str.rfind('}')]) # strictly drop the last closing brace
 
 for i in range(1, 45):
     block = blocks[i % len(blocks)]

@@ -1,4 +1,8 @@
-from typing import Anyfrom datetime import datefrom decimal import Decimalfrom server.models import Invoice, LineItem, PurchaseOrder, CompareItemAction, DiscrepancyType, GoodsReceivedNote, Discrepancy
+from typing import Any
+from datetime import date
+from decimal import Decimal
+from server.models import Invoice, LineItem, PurchaseOrder, CompareItemAction, DiscrepancyType, GoodsReceivedNote, Discrepancy
+
 _SCENARIOS: dict[str, dict[str, Any]] = {
     "easy-exact-match": {
         "description": "Invoice amounts and line items exactly match the PO.",
@@ -690,83 +694,7 @@ _MAX_STEPS: dict[str, int] = {
     "duplicate-invoice-detection": 10,
     "partial-delivery-po":        10,
     "vendor-sanctions-check":     10,
-}
 
-
-class _EpisodeState:
-    """Holds mutable state for a single episode."""
-
-    def __init__(self, episode_id: str, task_id: str, scenario: dict[str, Any]) -> None:
-        self.episode_id = episode_id
-        self.task_id = task_id
-        self.scenario = scenario
-
-        self.step: int = 0
-        self.stage: str = "select_po"
-        self.cumulative_reward: float = 0.0
-        self.max_steps: int = _MAX_STEPS.get(task_id, 12)
-
-        # ── Atomicity Tracking (Audit Fix #2) ────────────────────────────
-        self.rewarded_compare_indices: set[int] = set()
-        self.rewarded_discrepancy_types: set[str] = set()
-
-        # Filled as the agent progresses
-        self.selected_po: PurchaseOrder | None = None
-        self.comparison_results: list[dict[str, Any]] = []
-        self.flagged_discrepancies: list[Discrepancy] = []
-        self.action_history: list[dict[str, Any]] = []   # for info/debugging
-
-        # Pre-compute the ground-truth discrepancies for grading
-        self._ground_truth_discrepancies: list[DiscrepancyType] = list(
-            scenario["expected_discrepancies"]
-        )
-
-    # ── convenience properties ─────────────────────────────────────────────
-
-    @property
-    def invoice(self) -> Invoice:
-        return self.scenario["invoice"]
-
-    @property
-    def available_pos(self) -> list[PurchaseOrder]:
-        return self.scenario["available_pos"]
-
-    @property
-    def grn(self) -> GoodsReceivedNote | None:
-        return self.scenario.get("goods_received_note")
-
-    @property
-    def correct_po_id(self) -> str:
-        return self.scenario["correct_po_id"]
-
-    @property
-    def expected_final_action(self) -> str:
-        return self.scenario["expected_final_action"]
-
-    @property
-    def expected_discrepancies(self) -> list[DiscrepancyType]:
-        return self._ground_truth_discrepancies
-
-
-# ---------------------------------------------------------------------------
-# Helper: fuzzy word-overlap key matching
-# ---------------------------------------------------------------------------
-
-def _fuzzy_match_key(key: str, candidates: Any) -> str | None:
-    key_words = set(key.split())
-    best: str | None = None
-    best_score = 0
-    for candidate in candidates:
-        score = len(key_words & set(candidate.split()))
-        if score > best_score:
-            best_score = score
-            best = candidate
-    return best if best_score > 0 else None
-
-
-# ---------------------------------------------------------------------------
-# Environment class
-# ---------------------------------------------------------------------------
 
     "medium-fuzzy-match-var-1": {
         "description": (
