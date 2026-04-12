@@ -164,7 +164,7 @@ async def step(episode_id: str, action: dict):
 @app.get("/tasks")
 async def tasks():
     from .tasks import _SCENARIOS
-    return {"tasks": list(_SCENARIOS.keys())}
+    return {"total": len(_SCENARIOS), "curriculum": list(_SCENARIOS.keys())}
 
 @app.get("/health")
 async def health():
