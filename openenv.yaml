@@ -31,6 +31,9 @@ tasks:
     max_reward: 0.80
     normalized_perfect_score: 1.0
     expected_discrepancies: []
+    metadata:
+      regulation: "Standard Accounts Payable Procedure"
+      real_world_incident: "Process efficiency optimization"
 
   - id: medium-fuzzy-match
     description: >
@@ -46,6 +49,9 @@ tasks:
     expected_discrepancies:
       - vendor_name_mismatch
       - price_mismatch
+    metadata:
+      regulation: "Audit Standard: Fuzzy Vendor Matching Controls"
+      real_world_incident: "Prevents duplicate vendors & phantom billing"
 
   - id: hard-discrepancy-detection
     description: >
@@ -63,6 +69,9 @@ tasks:
       - price_mismatch
       - quantity_mismatch
       - extra_charge
+    metadata:
+      regulation: "SOX 404: Internal Control over Financial Reporting"
+      real_world_incident: "Gartner: $300K/year labor cost per clerk on manual review"
 
   - id: ambiguous-split-invoice
     description: >
@@ -83,6 +92,9 @@ tasks:
       - price_mismatch
       - quantity_mismatch
       - extra_charge
+    metadata:
+      regulation: "Procurement Control: Multi-PO Reconciliation Policy"
+      real_world_incident: "Prevents multi-source item leakage"
 
   - id: compliance-soc2-vendor
     description: >
@@ -98,6 +110,9 @@ tasks:
     expected_discrepancies:
       - price_mismatch
       - extra_charge
+    metadata:
+      regulation: "AICPA Trust Services Criteria (SOC2)"
+      real_world_incident: "Gartner 2024: $250K avg SOC2 audit penalty"
 
   - id: multi-currency-compliance
     description: >
@@ -112,6 +127,9 @@ tasks:
     normalized_perfect_score: 1.0
     expected_discrepancies:
       - price_mismatch
+    metadata:
+      regulation: "Corporate Treasury FX Risk Policy"
+      real_world_incident: "Prevents unauthorized cross-currency leakage"
 
   - id: vat-reverse-charge
     description: "EU B2B invoice must apply VAT reverse charge per Directive 2006/112/EC. Agent must flag if vendor charged VAT."
@@ -122,6 +140,9 @@ tasks:
     normalized_perfect_score: 1.0
     expected_discrepancies:
       - tax_mismatch
+    metadata:
+      regulation: "EU VAT Directive 2006/112/EC (Article 196)"
+      real_world_incident: "Prevents EU cross-border tax evasion fines"
 
   - id: duplicate-invoice-detection
     description: "Invoice INV-1001 already processed. Agent must reject duplicate per SOX 404."
@@ -132,6 +153,9 @@ tasks:
     normalized_perfect_score: 1.0
     expected_discrepancies:
       - duplicate_invoice
+    metadata:
+      regulation: "SOX Section 404 / ACFE Fraud Controls"
+      real_world_incident: "ACFE: 5% of revenue lost to duplicate/fraudulent billing"
 
   - id: partial-delivery-po
     description: "GRN shows 8/10 received but invoice bills 10. Agent must calculate partial payment."
@@ -142,6 +166,9 @@ tasks:
     normalized_perfect_score: 1.0
     expected_discrepancies:
       - quantity_mismatch
+    metadata:
+      regulation: "Inventory Management Triple-Match Policy"
+      real_world_incident: "Gartner: 15% revenue leakage from unreceived items"
 
   - id: vendor-sanctions-check
     description: "Vendor on OFAC sanctions list. Must reject regardless of price/PO match."
@@ -152,6 +179,9 @@ tasks:
     normalized_perfect_score: 1.0
     expected_discrepancies:
       - vendor_name_mismatch
+    metadata:
+      regulation: "US Treasury OFAC Sanctions Compliance"
+      real_world_incident: "OFAC: $100M+ fines for processing sanctioned payments"
 
 observation_space:
   type: object
