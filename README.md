@@ -17,6 +17,8 @@ short_description: Train AI to safely process enterprise invoices against SOC2, 
 
 # 🚀 Luminix: Agentic Execution Environments for Finance
 
+**[Live Demo on Hugging Face Spaces](https://huggingface.co/spaces/dharshinik1-luminix-invoice-env)**
+
 **Simulates real-world compliance-critical decision pipelines in accounts payable and procurement.**
 
 Agents must make policy-compliant reconciliation choices even when obvious surface patterns (lower prices, faster vendors) are tempting but violate binding controls like SOC2, SOX 404, or OFAC sanctions.
