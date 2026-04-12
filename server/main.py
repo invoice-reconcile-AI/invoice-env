@@ -87,7 +87,7 @@ HTML_CONTENT = """
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-val">54</div><div class="stat-label">Scenarios</div></div>
+            <div class="stat-card"><div class="stat-val">10</div><div class="stat-label">Scenarios</div></div>
             <div class="stat-card"><div class="stat-val">3</div><div class="stat-label">Difficulties</div></div>
             <div class="stat-card"><div class="stat-val">4</div><div class="stat-label">Policy Gates</div></div>
             <div class="stat-card"><div class="stat-val">0.99</div><div class="stat-label">Score Cap</div></div>
@@ -97,21 +97,21 @@ HTML_CONTENT = """
         <div class="task-list">
             <div class="task-item">
                 <div class="task-name">exact_match_audit</div>
-                <div class="task-meta">20 scenarios <span class="tag-easy">EASY</span></div>
+                <div class="task-meta">3 scenarios <span class="tag-easy">EASY</span></div>
             </div>
             <div class="task-item">
                 <div class="task-name">fuzzy_reconciliation</div>
-                <div class="task-meta">15 scenarios <span class="tag-med">MEDIUM</span></div>
+                <div class="task-meta">3 scenarios <span class="tag-med">MEDIUM</span></div>
             </div>
             <div class="task-item">
                 <div class="task-name">discrepancy_fraud</div>
-                <div class="task-meta">19 scenarios <span class="tag-hard">HARD</span></div>
+                <div class="task-meta">4 scenarios <span class="tag-hard">HARD</span></div>
             </div>
         </div>
 
         <div class="section-title">Global Reward Function</div>
         <div class="reward-box">
-            0.6·correct + 0.2·compliance + 0.2·heuristic - 0.1·trap
+            0.6·correct_decision + 0.4·audit_accuracy - 0.3·penalty
         </div>
 
         <div class="section-title">Sample Audit Log</div>

@@ -81,7 +81,7 @@ Luminix enforces these binding constraints:
 ## 🎯 Reward Function
 
 ```text
-reward = 0.6×correct_decision + 0.2×stage_success + 0.2×rule_id - 0.3×compliance_penalty
+reward = 0.6·correct_decision + 0.2×stage_success + 0.2×rule_id - 0.3×compliance_penalty
 ```
 
 | Component | Points | Meaning |
