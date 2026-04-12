@@ -750,6 +750,10 @@ class _EpisodeState:
         self.cumulative_reward: float = 0.0
         self.max_steps: int = _MAX_STEPS.get(task_id, 12)
 
+        # ── Atomicity Tracking (Audit Fix #2) ────────────────────────────
+        self.rewarded_compare_indices: set[int] = set()
+        self.rewarded_discrepancy_types: set[str] = set()
+
         # Filled as the agent progresses
         self.selected_po: PurchaseOrder | None = None
         self.comparison_results: list[dict[str, Any]] = []
@@ -850,12 +854,7 @@ class InvoiceReconciliationEnv:
         )
 
     def step(self, action: InvoiceAction) -> InvoiceObservation:  # type: ignore[valid-type]
-        """Advance the episode by one step.
-
-        The action must match the current stage.  Wrong-stage actions receive
-        a small penalty and the stage does not advance.
-        Episodes that hit max_steps without a final_decision receive a −0.10 penalty.
-        """
+        """Advance the episode by one step."""
         ep = self._ep
         if ep is None:
             raise RuntimeError("Call reset() before step().")
@@ -863,6 +862,23 @@ class InvoiceReconciliationEnv:
             raise RuntimeError("Episode is already finished. Call reset().")
 
         ep.step += 1
+
+        # ── STAGE GATING (Audit Fix #1, #3 & #6) ──────────────────────────
+        required_stage = {
+            "SelectPOAction": "select_po",
+            "CompareItemAction": "compare_items",
+            "FlagDiscrepancyAction": "flag_discrepancies",
+            "FinalDecisionAction": "flag_discrepancies",
+        }.get(type(action).__name__)
+
+        if ep.stage != required_stage:
+            penalty = -0.10
+            ep.cumulative_reward = round(ep.cumulative_reward + penalty, 4)
+            return self._make_obs(
+                reward=penalty,
+                info={"error": f"Invalid stage '{ep.stage}' for action '{type(action).__name__}'"},
+                feedback=f"Follow sequence: select_po -> compare_items -> flag_discrepancies -> final_decision."
+            )
 
         # Record action in history
         ep.action_history.append(
@@ -1006,7 +1022,13 @@ class InvoiceReconciliationEnv:
         price_correct    = action.price_matches == gt_price_matches
         qty_correct      = action.quantity_matches == gt_qty_matches
         all_correct      = found_correct and price_correct and qty_correct
-        reward           = 0.10 if all_correct else (0.04 if (found_correct or price_correct or qty_correct) else 0.0)
+
+        # ── ATOMIC REWARDS (Audit Fix #2) ────────────────────────────────
+        reward = 0.0
+        if action.invoice_item_index not in ep.rewarded_compare_indices:
+            reward = 0.10 if all_correct else (0.04 if (found_correct or price_correct or qty_correct) else 0.0)
+            if reward > 0:
+                ep.rewarded_compare_indices.add(action.invoice_item_index)
 
         result_entry = {
             "invoice_item_index":    action.invoice_item_index,
@@ -1053,28 +1075,21 @@ class InvoiceReconciliationEnv:
     def _handle_flag_discrepancy(
         self, action: FlagDiscrepancyAction, ep: _EpisodeState
     ) -> tuple[float, dict[str, Any], str]:
-        if ep.stage not in ("flag_discrepancies", "compare_items"):
-            # Allow flagging even if not all items compared (lenient)
-            if ep.stage not in ("flag_discrepancies",):
-                return (
-                    -0.05,
-                    {"error": f"Cannot flag discrepancies in stage '{ep.stage}'."},
-                    f"Stage is '{ep.stage}'. Complete compare_item actions first.",
-                )
-
-        ep.stage = "flag_discrepancies"
+        # Gating already handled by step() but we add safety
+        if ep.stage != "flag_discrepancies":
+             return -0.10, {"error": "Must complete all comparisons first."}, "Follow stage sequence."
 
         # Check if this discrepancy is real (in ground truth)
         correct = action.discrepancy_type in ep.expected_discrepancies
-        reward = 0.10 if correct else -0.05  # penalise spurious flags
 
-        already_flagged_types = {d.discrepancy_type for d in ep.flagged_discrepancies}
-        if action.discrepancy_type in already_flagged_types:
-            return (
-                0.0,
-                {"duplicate_flag": action.discrepancy_type.value},
-                f"'{action.discrepancy_type.value}' is already flagged. No reward.",
-            )
+        # ── ATOMIC REWARDS (Audit Fix #2) ────────────────────────────────
+        reward = 0.0
+        if action.discrepancy_type.value not in ep.rewarded_discrepancy_types:
+            reward = 0.10 if correct else -0.05
+            if reward > 0:
+                ep.rewarded_discrepancy_types.add(action.discrepancy_type.value)
+        else:
+            return 0.0, {"duplicate_flag": action.discrepancy_type.value}, "Already rewarded."
 
         discrepancy_obj = Discrepancy(
             discrepancy_type=action.discrepancy_type,
@@ -1142,7 +1157,7 @@ class InvoiceReconciliationEnv:
 
         # ── Normalised score 0.0–1.0 ──────────────────────────────────────
         max_reward = float(ep.scenario.get("max_reward", 1.20))
-        # ── Normalised score strictly within (0, 1) per Phase 2 rules ──────
+        # ── Normalised score strictly within [0.01, 0.99] (Audit Fix #4 - Spec Compliance)
         raw_score = final_cumulative / max_reward
         normalized_score = round(max(0.01, min(0.99, raw_score)), 4)
 
@@ -1152,7 +1167,14 @@ class InvoiceReconciliationEnv:
             "incorrect"
         )
 
+        # ── FLAT METADATA (Audit Fix #7) ──────────────────────────────────
         info: dict[str, Any] = {
+            "normalized_score":        normalized_score,   # Top-level for scoring tools
+            "cumulative_reward":        final_cumulative,
+            "max_possible_reward":      max_reward,
+            "is_correct":               action_correct,
+            "result_label":             result_label,
+            # Nested details...
             "stage_reward":           total_step_reward,
             "decision_correct":       action_correct,
             "expected_final_action":  ep.expected_final_action,

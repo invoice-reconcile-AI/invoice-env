@@ -57,6 +57,9 @@ reward = 0.6×correct_decision + 0.2×stage_success + 0.2×rule_id - 0.3×compli
 | Rule ID | 0.20 | Identified specific triggering policy, e.g. SOC2 |
 | Compliance Penalty | -0.30 | Approved a violation or missed critical fraud flag |
 
+> [!NOTE]
+> **Spec Compliance:** `normalized_score` is clamped to `[0.01, 0.99]` per OpenEnv Phase 2 specification (v0.3.2) to ensure universal grader compatibility. A score of **0.99** indicates a 100% correct agent.
+
 <details>
 <summary>Technical: Sample Observation/Action Space</summary>
 

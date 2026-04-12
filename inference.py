@@ -55,16 +55,23 @@ else:
 # ---------------------------------------------------------------------------
 
 # --- MANDATORY HACKATHON VARIABLES (PHASE 2) ---
-# All env vars with safe defaults - won't crash if missing
-MODEL_NAME = os.environ.get("MODEL_NAME", "meta-llama/Llama-3.1-70B-Instruct")
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
+MODEL_NAME = os.environ.get("MODEL_NAME")
+API_BASE_URL = os.environ.get("API_BASE_URL")
+HF_TOKEN = os.environ.get("HF_TOKEN")
 ENV_SERVER_URL = os.environ.get("ENV_BASE_URL") or "http://localhost:7860"
 
-# Fail fast with clear message if HF_TOKEN is empty
-if not HF_TOKEN:
-    print("[ERROR] HF_TOKEN not set. Set it as HF Space Secret or env var.", file=sys.stderr)
-    sys.exit(1)
+# Strict check: No fallbacks allowed in validation environments
+if not all([MODEL_NAME, API_BASE_URL, HF_TOKEN]):
+    # Allow local-only defaults if explicitly on localhost
+    if ENV_SERVER_URL.startswith("http://localhost") or ENV_SERVER_URL.startswith("http://127.0.0.1"):
+        MODEL_NAME = MODEL_NAME or "meta-llama/Llama-3.1-70B-Instruct"
+        API_BASE_URL = API_BASE_URL or "https://router.huggingface.co/v1"
+        HF_TOKEN = HF_TOKEN or ""
+        _dbg("Local execution detected: Using default variables.")
+    else:
+        missing = [k for v, k in [(MODEL_NAME, "MODEL_NAME"), (API_BASE_URL, "API_BASE_URL"), (HF_TOKEN, "HF_TOKEN")] if not v]
+        print(f"[CRITICAL ERROR] Mandatory env vars missing: {missing}", file=sys.stderr)
+        sys.exit(1)
 
 _dbg(f"Using MODEL_NAME={MODEL_NAME}")
 _dbg(f"Using API_BASE_URL={API_BASE_URL}")
@@ -112,11 +119,11 @@ def log_step(step: int, action: Dict[str, Any], reward: float,
     )
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    # Validator requires 0 < score < 1 strictly. Clamp edge cases.
-    if score >= 1.0:
-        score = 0.999
-    elif score <= 0.0:
-        score = 0.001
+    # Validator requirement: 0.01 <= score <= 0.99 (Audit Fix #4 - Spec Compliance)
+    if score >= 0.99:
+        score = 0.99
+    elif score <= 0.01:
+        score = 0.01
 
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
@@ -178,8 +185,11 @@ def _warm_up_proxy() -> None:
     except Exception as exc:
         _dbg(f"Proxy warm-up failed (non-fatal): {exc}")
 
+_LLM_FAILURE_COUNT = 0
+
 def call_llm(messages: List[Dict[str, str]]) -> Dict[str, Any]:
     """Call LLM via OpenAI-compatible client using API_BASE_URL + HF_TOKEN."""
+    global _LLM_FAILURE_COUNT
     try:
         client = _OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
         resp = client.chat.completions.create(
@@ -189,9 +199,15 @@ def call_llm(messages: List[Dict[str, str]]) -> Dict[str, Any]:
             max_tokens=600,
             timeout=20, # NEW: Fail fast for UI
         )
+        _LLM_FAILURE_COUNT = 0 # Reset on success
         return _extract_json(resp.choices[0].message.content or "")
     except Exception as exc:
-        _dbg(f"[warn] LLM call failed: {exc}")
+        _LLM_FAILURE_COUNT += 1
+        _dbg(f"[warn] LLM call failed ({_LLM_FAILURE_COUNT}/5): {exc}")
+        if _LLM_FAILURE_COUNT >= 5:
+            # Audit Fix #5: Abort rather than submitting junk
+            print(f"[FATAL] Connection to {API_BASE_URL} failed 5 times. Aborting.", file=sys.stderr)
+            sys.exit(1)
         return {}
 
 # ---------------------------------------------------------------------------
