@@ -1,4 +1,4 @@
-environment: invoice-reconciliation
+name: invoice-reconciliation
 version: "2.0.0"
 description: >
   Multi-step OpenEnv environment for automated Invoice-to-Payment reconciliation.

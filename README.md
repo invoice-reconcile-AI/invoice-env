@@ -1,4 +1,23 @@
+---
+title: Luminix Invoice Compliance
+emoji: 💎
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+pinned: false
+app_port: 7860
+base_path: /web
+tags:
+  - openenv
+---
+
 # 💎 Luminix: Multi-Modal Invoice Compliance RL Environment
+
+## 🕒 Latest Update: 2026-04-12
+- **Hardened 4-Stage Security Protocol**: Strictly enforced order (Select → Compare → Flag → Resolve).
+- **Compliance Clamping**: Scores now strictly stay in `[0.01, 0.99]` per OpenEnv spec v0.3.
+- **Production URL**: [Invoice Reconciliation Environment](https://huggingface.co/spaces/Dharshinik1/luminix-invoice-env)
+- **Agentic Masking**: Visualized "allowed_actions" in real-time to prevent out-of-spec calls.
 
 ![Luminix Demo](demo.png)
 
