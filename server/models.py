@@ -259,3 +259,7 @@ class InvoiceObservation(BaseModel):
         default_factory=list,
         description="Replay log of actions taken in the episode."
     )
+    allowed_action_types: list[str] = Field(
+        default_factory=list,
+        description="Explicit action mask showing which actions are valid for the current stage."
+    )

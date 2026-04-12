@@ -1187,6 +1187,16 @@ class InvoiceReconciliationEnv:
         )
         return total_step_reward, info, feedback
 
+    def get_action_mask(self) -> list[str]:
+        """Proves action masking: returns allowed actions for current stage."""
+        if not self._ep:
+            return []
+        return {
+            "select_po": ["select_po"],
+            "compare_items": ["compare_item"],
+            "flag_discrepancies": ["flag_discrepancy", "final_decision"],
+        }.get(self._ep.stage, [])
+
     # ------------------------------------------------------------------
     # Internal observation builder
     # ------------------------------------------------------------------
@@ -1210,6 +1220,13 @@ class InvoiceReconciliationEnv:
         needs_review = min(confidence.values(), default=1.0) < 0.8 if confidence else False
         compliance_rule = ep.scenario.get("compliance_rule")
 
+        # ── Compute Action Mask ───────────────────────────────────────────
+        allowed = {
+            "select_po": ["select_po"],
+            "compare_items": ["compare_item"],
+            "flag_discrepancies": ["flag_discrepancy", "final_decision"],
+        }.get(ep.stage, [])
+
         return InvoiceObservation(
             episode_id=ep.episode_id,
             task_id=ep.task_id,
@@ -1230,6 +1247,7 @@ class InvoiceReconciliationEnv:
             needs_review=needs_review,
             compliance_check=compliance_rule,
             action_history=ep.action_history,
+            allowed_action_types=allowed,
         )
 
 

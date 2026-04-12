@@ -48,3 +48,28 @@ def test_greedy_agent_fails():
     # Since it's a 'reject' task (sanctions or discrepancy), 'approve' should return -0.30
     # Final cumulative should be around +0.2 (po) + 0.1 (item) - 0.3 (decision) = 0.0
     assert obs.cumulative_reward < 0.6, f"Greedy approve should fail on reject task. Score: {obs.cumulative_reward}"
+
+def test_action_masking():
+    """Prove that final_decision is hidden until flag_discrepancies stage"""
+    env = InvoiceReconciliationEnv()
+    
+    # Stage 0: Reset
+    env.reset("hard-discrepancy-detection")
+    assert "final_decision" not in env.get_action_mask(), "final_decision must be hidden in stage 1"
+    
+    # Stage 1: select_po
+    env.step(SelectPOAction(po_id="PO-5003"))
+    assert "final_decision" not in env.get_action_mask(), "final_decision must be hidden during comparison"
+    
+    # Stage 2: compare_items (must compare all 3 items to advance)
+    for i in range(3):
+        env.step(CompareItemAction(
+            invoice_item_index=i, 
+            po_item_description="...", 
+            found_in_po=True, 
+            price_matches=True, 
+            quantity_matches=True
+        ))
+    
+    # Now in flag_discrepancies
+    assert "final_decision" in env.get_action_mask(), "final_decision should now appear in the mask"
