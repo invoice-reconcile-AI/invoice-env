@@ -15,26 +15,24 @@ tags:
 short_description: Train AI to safely process enterprise invoices against SOC2, SOX, and OFAC.
 ---
 
-# 🚀 Luminix: Agentic Execution Environments for Finance
+# 💎 Luminix: Multi-Modal Invoice Compliance RL Environment
 
-**Live Demo:** Screenshot below. HF Space under construction for Phase 4.
+![Luminix Demo](demo.png)
+
+**Live Demo Video:** [Watch 60-sec Walkthrough](https://drive.google.com/file/d/1EbGihJg0a9yQ9aIiLjPtjfosURn7e5dw/view?usp=sharing)
 
 **Simulates real-world compliance-critical decision pipelines in accounts payable and procurement.**
 
 Agents must make policy-compliant reconciliation choices even when obvious surface patterns (lower prices, faster vendors) are tempting but violate binding controls like SOC2, SOX 404, or OFAC sanctions.
 
-> These failure modes are documented in production AI systems ([arXiv:2603.29025](https://arxiv.org/abs/2603.29025), CMU 2026)
-
 ---
 
-> OpenEnv Hackathon 2026 · 
+> **OpenEnv Hackathon 2026 · Phase 3 Submission**
 > Enterprise RL environment for Accounts Payable automation. Processes real PDF invoices via OCR, enforces SOC2 / OFAC / SOX / EU VAT policy in a compliance-gated reward function, and exports tamper-evident audit trails. Saves **3 hrs/day per AP clerk** by auto-approving safe invoices and flagging only genuine violations.
 
-![Luminix Batch Processor — 10 curriculum tasks, compliance badges, 50% auto-approval](demo.png)
-
 ---
 
-## The Real-World Problem
+## 💼 The Real-World Problem
 
 **AI assistants fall for surface patterns and ignore binding financial controls.**
 
@@ -56,7 +54,7 @@ This isn't rare. Research shows surface cues like "lowest cost" are often **8.7-
 
 ---
 
-## What Agents Learn
+## 🎓 What Agents Learn
 
 Agents learn to:
 1. **Read & Apply Explicit Policy Constraints** (SOC2, SOX 404, OFAC, B2B VAT)
@@ -73,7 +71,7 @@ Agents learn to:
 
 ---
 
-## Decision Types Covered
+## 🏛 Decision Types Covered
 
 Real finance scenarios where agents must follow policy over intuition:
 
@@ -87,7 +85,7 @@ Real finance scenarios where agents must follow policy over intuition:
 
 ---
 
-## Reward Function
+## 🎯 Reward Function
 
 ```text
 reward = 0.6×correct_decision + 0.2×stage_success + 0.2×rule_id - 0.3×compliance_penalty
@@ -120,26 +118,6 @@ streamlit run streamlit_app.py
 
 ```bash
 python inference.py --task vendor-sanctions-check
-```
-
----
-
-## ⚙️ Usage
-
-**Interactive Batch Processor (Recommended)**
-Open the Streamlit UI to watch the agent process 10 tasks in sequence with live audit trails.
-
-**HTTP API**
-```bash
-# Start SOC2 Compliance Task
-curl -X POST "https://huggingface.co/spaces/dharshinik1-luminix-invoice-env/reset" \
-  -H "Content-Type: application/json" \
-  -d '{"task_id":"compliance-soc2-vendor"}'
-
-# Submit Action
-curl -X POST "https://huggingface.co/spaces/dharshinik1-luminix-invoice-env/step" \
-  -H "Content-Type: application/json" \
-  -d '{"action":{"action_type":"final_decision","decision":"reject","reasoning":"Missing SOC2"}}'
 ```
 
 ---
