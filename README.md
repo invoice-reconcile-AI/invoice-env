@@ -182,11 +182,9 @@ From arXiv:2603.29025:
 
 | Member | Role |
 |--------|------|
-| **Dharshini K** | Team Lead · Luminix Environment Lead |
-| **Vishruth M R** | RL Infrastructure · Benchmarking |
-| **Akshay Kumar** | Dataset Engineering · Baseline Inference |
-
-**Contacts:** `vishruthmr25@gmail.com` · `akshaykumarhudedmani@gmail.com`
+| **DHARSHINI** | Team Lead · Luminix Environment Lead |
+| **MATHIR VISHNU** | RL Infrastructure · Benchmarking |
+| **HARISH** | Dataset Engineering · Baseline Inference |
 
 **OpenEnv Hackathon 2026 — Round 1 Submission**
 
