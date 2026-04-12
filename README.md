@@ -17,7 +17,7 @@ short_description: Train AI to safely process enterprise invoices against SOC2, 
 
 # 🚀 Luminix: Agentic Execution Environments for Finance
 
-**[Live Demo on Hugging Face Spaces](https://huggingface.co/spaces/dharshinik1-luminix-invoice-env)**
+**Live Demo:** Screenshot below. HF Space under construction for Phase 4.
 
 **Simulates real-world compliance-critical decision pipelines in accounts payable and procurement.**
 
