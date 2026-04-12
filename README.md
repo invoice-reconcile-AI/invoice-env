@@ -57,6 +57,15 @@ reward = 0.6×correct_decision + 0.2×stage_success + 0.2×rule_id - 0.3×compli
 | Rule ID | 0.20 | Identified specific triggering policy, e.g. SOC2 |
 | Compliance Penalty | -0.30 | Approved a violation or missed critical fraud flag |
 
+<details>
+<summary>Technical: Sample Observation/Action Space</summary>
+
+**Observation:** `{"stage": "compare_items", "invoice": {"vendor": "...", "total": 1200}, "selected_po": {...}}`  
+**Action:** `{"action_type": "flag_discrepancy", "discrepancy_type": "price_mismatch", "details": "..."}`  
+**Typed Schema:** All interactions strictly validated by `server/models.py` Pydantic schemas.
+
+</details>
+
 ## ✨ Quick Start
 
 **Install dependencies:**
