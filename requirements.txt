@@ -3,7 +3,6 @@ uvicorn
 pydantic
 python-dotenv
 pandas
-decimal-type
 jinja2
 python-multipart
 requests
