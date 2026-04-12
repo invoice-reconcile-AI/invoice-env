@@ -9,7 +9,7 @@
 
 ## 🎯 Project Overview
 
-**OpenEnv Hackathon 2026 · Phase 3 Submission**
+**An enterprise reinforcement learning environment for OpenEnv**
 
 Luminix is an enterprise reinforcement learning environment for Accounts Payable automation. It processes real PDF/PNG/JPG invoices via OCR, enforces SOC2 / OFAC / SOX 404 / EU VAT / FX policy through a compliance-gated reward function, and exports tamper-evident audit trails.
 
