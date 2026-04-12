@@ -180,14 +180,14 @@ From arXiv:2603.29025:
 
 **Dharshini's Team · Luminix**
 
-| Member | Role |
-|--------|------|
-| **DHARSHINI** | Team Lead · Luminix Environment Lead |
-| **MATHIR VISHNU** | RL Infrastructure · Benchmarking |
-| **HARISH** | Dataset Engineering · Baseline Inference |
+| Lead | Contact Email |
+|------|---------------|
+| **DHARSHINI** | [dharshuk123@gmail.com](mailto:dharshuk123@gmail.com) |
+| **MATHIR VISHNU** | [mathirvishnum2006@gmail.com](mailto:mathirvishnum2006@gmail.com) |
+| **HARISH** | [harishbalaji1970@gmail.com](mailto:harishbalaji1970@gmail.com) |
 
 **OpenEnv Hackathon 2026 — Round 1 Submission**
 
 ---
 
-MIT License · [arXiv:2603.29025](https://arxiv.org/abs/2603.29025) · [OpenEnv Spec](https://github.com/meta-pytorch/OpenEnv)
+MIT License · [arXiv:2603.29025](https://arxiv.org/abs/2603.29025) · [Official OpenEnv Spec](https://github.com/meta-pytorch/OpenEnv)
