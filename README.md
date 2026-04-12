@@ -127,5 +127,10 @@ Verification: Run `pytest tests/test_baselines.py` to confirm environmental inte
 | **Member: Mathir Vishnu** | mathirvishnum2006@gmail.com |
 | **Member: Harish** | harishbalaji1970@gmail.com |
 
-OpenEnv Hackathon 2026 — Round 1 Submission
-License: MIT
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+[Official OpenEnv Spec](https://github.com/meta-pytorch/OpenEnv)
