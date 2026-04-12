@@ -25,7 +25,7 @@ Agents must make policy-compliant reconciliation choices even when obvious surfa
 
 ---
 
-> **OpenEnv Hackathon 2026 · 
+> OpenEnv Hackathon 2026 · 
 > Enterprise RL environment for Accounts Payable automation. Processes real PDF invoices via OCR, enforces SOC2 / OFAC / SOX / EU VAT policy in a compliance-gated reward function, and exports tamper-evident audit trails. Saves **3 hrs/day per AP clerk** by auto-approving safe invoices and flagging only genuine violations.
 
 ![Luminix Batch Processor — 10 curriculum tasks, compliance badges, 50% auto-approval](demo.png)
