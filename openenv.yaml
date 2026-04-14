@@ -1,0 +1,255 @@
+name: invoice-reconciliation
+version: "2.0.0"
+description: >
+  Multi-step OpenEnv environment for automated Invoice-to-Payment reconciliation.
+  An AI agent interacts over 4 ordered stages to reconcile an Invoice against a
+  Purchase Order and Goods Received Note:
+    Stage 1 – select_po:           Agent picks the correct PO from candidates.
+    Stage 2 – compare_items:       Agent compares each invoice line item vs PO/GRN.
+    Stage 3 – flag_discrepancies:  Agent explicitly flags every discrepancy found.
+    Stage 4 – final_decision:      Agent issues the definitive approve/flag/reject.
+  Rewards are incremental at every step, providing meaningful partial signals.
+  Each episode returns a normalized_score in [0.0, 1.0] relative to max_reward.
+
+server:
+  base_url: http://localhost:7860
+  endpoints:
+    reset: POST /reset
+    step:  POST /step
+    state: GET  /state
+
+tasks:
+  - id: easy-exact-match
+    description: >
+      Invoice amounts, quantities, and vendor name exactly match the Purchase Order
+      and Goods Received Note. One distractor PO from a different vendor is also
+      presented. The correct sequence is: select PO-5001, compare all items
+      (all match), flag no discrepancies, then APPROVE.
+    difficulty: easy
+    max_steps: 8
+    reward_threshold: 0.6
+    max_reward: 0.80
+    normalized_perfect_score: 0.99
+    expected_discrepancies: []
+    metadata:
+      regulation: "Standard Accounts Payable Procedure"
+      real_world_incident: "Process efficiency optimization"
+
+  - id: medium-fuzzy-match
+    description: >
+      The vendor name contains minor capitalisation differences and one line-item
+      unit price is $2 higher than the PO value. A distractor PO from a different
+      vendor is presented. The agent must apply fuzzy matching, detect both
+      discrepancies, and FLAG the invoice.
+    difficulty: medium
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.00
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - vendor_name_mismatch
+      - price_mismatch
+    metadata:
+      regulation: "Audit Standard: Fuzzy Vendor Matching Controls"
+      real_world_incident: "Prevents duplicate vendors & phantom billing"
+
+  - id: hard-discrepancy-detection
+    description: >
+      Multiple overlapping discrepancies: a $100/unit price overcharge on a
+      high-value laptop item, a quantity invoiced for 10 wireless mice but only 8
+      received, and an extra "Extended Warranty" line item absent from the PO.
+      A distractor PO from "Global Tech Solutions" (without "Inc.") is included.
+      The agent must detect ALL three discrepancies and REJECT the invoice.
+    difficulty: hard
+    max_steps: 12
+    reward_threshold: 0.6
+    max_reward: 1.20
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - price_mismatch
+      - quantity_mismatch
+      - extra_charge
+    metadata:
+      regulation: "SOX 404: Internal Control over Financial Reporting"
+      real_world_incident: "Gartner: $300K/year labor cost per clerk on manual review"
+
+  - id: ambiguous-split-invoice
+    description: >
+      No PO reference appears on the invoice. Two candidate POs both partially
+      cover the line items: PO-6001 (exact vendor name, covers main hardware)
+      and PO-6002 (fuzzy vendor name variant "Skybridge solutions", covers
+      services). The agent must reason about which PO is the primary match
+      (PO-6001 — exact vendor, more total value covered) and then identify
+      three discrepancies: a $2/unit price overcharge on CAT6 cables, a
+      quantity shortfall (50 invoiced vs 45 received), and an extra
+      "Installation Service" charge not in PO-6001. Final action: REJECT.
+    difficulty: ambiguous
+    max_steps: 14
+    reward_threshold: 0.6
+    max_reward: 1.20
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - price_mismatch
+      - quantity_mismatch
+      - extra_charge
+    metadata:
+      regulation: "Procurement Control: Multi-PO Reconciliation Policy"
+      real_world_incident: "Prevents multi-source item leakage"
+
+  - id: compliance-soc2-vendor
+    description: >
+      Invoice from non-SOC2 vendor with inflated pricing ($500 vs PO $450 per
+      unit) and unauthorized SOC2 Audit Fee charge not in PO. Company policy
+      requires SOC2 certification for vendors over $5K. Agent must detect
+      price overcharge and extra charge, then REJECT.
+    difficulty: hard
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.00
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - price_mismatch
+      - extra_charge
+    metadata:
+      regulation: "AICPA Trust Services Criteria (SOC2)"
+      real_world_incident: "Gartner 2024: $250K avg SOC2 audit penalty"
+
+  - id: multi-currency-compliance
+    description: >
+      EUR-denominated invoice against a USD Purchase Order with $800 FX-induced
+      price discrepancy on Enterprise Software License ($10800 vs PO $10000).
+      FX policy requires treasury approval for cross-currency invoices.
+      Agent must detect the price gap and FLAG for review.
+    difficulty: medium
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 0.90
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - price_mismatch
+    metadata:
+      regulation: "Corporate Treasury FX Risk Policy"
+      real_world_incident: "Prevents unauthorized cross-currency leakage"
+
+  - id: vat-reverse-charge
+    description: "EU B2B invoice must apply VAT reverse charge per Directive 2006/112/EC. Agent must flag if vendor charged VAT."
+    difficulty: medium
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.00
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - tax_mismatch
+    metadata:
+      regulation: "EU VAT Directive 2006/112/EC (Article 196)"
+      real_world_incident: "Prevents EU cross-border tax evasion fines"
+
+  - id: duplicate-invoice-detection
+    description: "Invoice INV-1001 already processed. Agent must reject duplicate per SOX 404."
+    difficulty: hard
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.00
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - duplicate_invoice
+    metadata:
+      regulation: "SOX Section 404 / ACFE Fraud Controls"
+      real_world_incident: "ACFE: 5% of revenue lost to duplicate/fraudulent billing"
+
+  - id: partial-delivery-po
+    description: "GRN shows 8/10 received but invoice bills 10. Agent must calculate partial payment."
+    difficulty: expert
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.20
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - quantity_mismatch
+    metadata:
+      regulation: "Inventory Management Triple-Match Policy"
+      real_world_incident: "Gartner: 15% revenue leakage from unreceived items"
+
+  - id: vendor-sanctions-check
+    description: "Vendor on OFAC sanctions list. Must reject regardless of price/PO match."
+    difficulty: expert
+    max_steps: 10
+    reward_threshold: 0.6
+    max_reward: 1.20
+    normalized_perfect_score: 0.99
+    expected_discrepancies:
+      - vendor_name_mismatch
+    metadata:
+      regulation: "US Treasury OFAC Sanctions Compliance"
+      real_world_incident: "OFAC: $100M+ fines for processing sanctioned payments"
+
+observation_space:
+  type: object
+  fields:
+    episode_id:          string
+    task_id:             string
+    step:                integer
+    invoice:             Invoice
+    available_pos:       "list[PurchaseOrder]"
+    goods_received_note: GoodsReceivedNote
+    selected_po:         "PurchaseOrder | null"
+    comparison_results:  "list[object]"
+    flagged_discrepancies: "list[Discrepancy]"
+    stage:
+      type: enum
+      values: [select_po, compare_items, flag_discrepancies, final_decision, finished]
+    is_done:             boolean
+    reward:              float
+    cumulative_reward:   float
+    info:                object
+    feedback:            string
+
+action_space:
+  type: discriminated_union
+  discriminator: action_type
+  variants:
+    - action_type: select_po
+      fields:
+        po_id:     string
+        reasoning: "string | null"
+
+    - action_type: compare_item
+      fields:
+        invoice_item_index:  integer
+        po_item_description: string
+        found_in_po:         boolean
+        price_matches:       boolean
+        quantity_matches:    boolean
+
+    - action_type: flag_discrepancy
+      fields:
+        discrepancy_type:
+          type: enum
+          values: [price_mismatch, quantity_mismatch, vendor_name_mismatch,
+                   po_not_found, duplicate_invoice, partial_delivery,
+                   extra_charge, missing_line_item]
+        details: string
+
+    - action_type: final_decision
+      fields:
+        decision:
+          type: enum
+          values: [approve, flag_discrepancy, reject]
+        matched_po_id:      "string | null"
+        reasoning:          "string | null"
+        discrepancy_flags:
+          type: "list[enum]"
+          values: [price_mismatch, quantity_mismatch, vendor_name_mismatch,
+                   po_not_found, duplicate_invoice, partial_delivery,
+                   extra_charge, missing_line_item]
+
+rewards:
+  stage1_correct_po_selection:  0.20
+  stage2_per_item_all_correct:  0.10
+  stage2_per_item_partial:      0.04
+  stage3_valid_discrepancy_flag: 0.10
+  stage3_spurious_flag_penalty: -0.05
+  stage4_correct_decision:      0.30
+  stage4_wrong_decision:       -0.30   # partial credit (was -0.60)
+  stage4_constraint_coverage:   0.20   # prorated by fraction of expected flags covered (was 0.10)
+  wrong_stage_action:           -0.05
