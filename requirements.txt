@@ -6,3 +6,6 @@ pandas
 jinja2
 python-multipart
 requests
+streamlit
+openpyxl
+pandas
